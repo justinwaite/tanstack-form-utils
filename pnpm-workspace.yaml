@@ -12,3 +12,8 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
     vitest: "*"
+# Build scripts Vite+ gates behind an explicit decision. msgpackr-extract is an
+# optional native accelerator for msgpackr (pulled in transitively via effect);
+# msgpackr falls back to a pure-JS path, so we decline the native build.
+allowBuilds:
+  msgpackr-extract: false
