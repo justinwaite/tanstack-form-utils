@@ -12,20 +12,28 @@ org-level actions only a human can take.
 
 - [ ] **2FA on the npm account** (authenticator/passkey), with recovery codes
       stored offline. Account takeover is the #1 way packages get hijacked.
-- [ ] **Publish with a granular automation token**, not your personal login
-      token. Scope it to _only_ this package (read/write) and store it as the
-      `NPM_TOKEN` repo secret — never commit it.
-- [ ] **Set the npm package to require 2FA for publish** (`Require two-factor
-authentication and automation tokens`) so a leaked token alone can't push.
-- [ ] ✅ **Provenance is enabled** (`NPM_CONFIG_PROVENANCE=true` + `id-token:
-write` in `release.yml`). Consumers can verify the package was built from
-      this repo's CI. Migrate to npm **Trusted Publishing (OIDC)** when ready to
-      drop the long-lived token entirely.
+- [ ] ✅ **CI publishes via OIDC Trusted Publishing — no long-lived token.**
+      `release.yml` has `id-token: write` and no `NPM_TOKEN`; npm verifies the
+      GitHub OIDC claim instead. A leaked CI secret can't publish because there
+      is no publish secret to leak. Provenance is attached automatically.
+- [ ] **Configure the trusted publisher on npm** (one-time, _after_ the first
+      publish — see "First publish" below): npm package → Settings → Trusted
+      Publishing → add GitHub Actions, repo `justinwaite/tanstack-form-utils`,
+      workflow `release.yml`. Restrict to the `main` branch if offered.
 - [ ] ✅ **`access: public`** is set intentionally in both `package.json`
       (`publishConfig`) and `.changeset/config.json` — a scoped package defaults
       to private/restricted.
-- [ ] **Rotate the publish token** if it's ever exposed in a log, and on a
-      periodic schedule.
+
+### First publish (bootstrapping trusted publishing)
+
+A trusted publisher can only be configured on a package that already exists, so
+the very first release can't use OIDC:
+
+1. Publish `0.0.x` once **locally** (`pnpm publish`) from a trusted device with
+   2FA — this creates the package on npm.
+2. Add the trusted publisher (above) pointing at this repo + `release.yml`.
+3. From then on, every release publishes token-free from CI. No `NPM_TOKEN`
+   secret is ever stored in GitHub.
 
 ## What ships in the tarball
 
@@ -67,14 +75,14 @@ write` in `release.yml`). Consumers can verify the package was built from
       (`release.yml` grants write only to the publish job).
 - [ ] ✅ **No untrusted code runs with secrets.** Release triggers on
       `push` to `main` only — never `pull_request_target` — so a fork PR can't
-      exfiltrate the npm token. CI on PRs runs with read-only permissions and
-      `persist-credentials: false`.
+      reach the release pipeline or its OIDC identity. CI on PRs runs with
+      read-only permissions and `persist-credentials: false`.
 - [ ] **Branch protection on `main`**: require the CI check to pass, require PR
       review, disallow force-pushes, and (ideally) require signed commits.
 - [ ] **Restrict who can publish.** Limit repo admins and npm package
       maintainers to people who actually need it; add a `CODEOWNERS` file.
 - [ ] **Pin/limit third-party actions to vetted publishers.** Every `uses:` is
-      code running in your release pipeline with your token.
+      code running in your release pipeline with access to its OIDC identity.
 
 ## Vulnerability response
 

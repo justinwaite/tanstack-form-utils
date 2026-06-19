@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: write # push the version-bump commit and git tags
       pull-requests: write # open/update the "Version Packages" PR
-      id-token: write # npm publish provenance via OIDC
+      id-token: write # OIDC: token-free npm auth (Trusted Publishing) + provenance
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -48,6 +48,6 @@ jobs:
           publish: pnpm run changeset:release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Attach build provenance to the published package (supply-chain).
-          NPM_CONFIG_PROVENANCE: "true"
+          # No npm token: auth is via OIDC Trusted Publishing (configured on the
+          # npm package settings for this repo + workflow). Provenance is
+          # attached automatically under trusted publishing.
