@@ -34,8 +34,7 @@ export function AppForm({ form, children, ...props }: AppFormProps) {
       onSubmit={(e) => {
         e.preventDefault();
         // capture intent from submitter button and set it in form state so it can be included in the validation step.
-        const submitter = (e.nativeEvent as SubmitEvent)
-          .submitter as HTMLButtonElement | null;
+        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
         if (submitter?.name === "intent" && submitter?.value) {
           form.setFieldValue("intent", submitter.value);
         }

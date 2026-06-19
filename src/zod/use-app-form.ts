@@ -9,13 +9,9 @@ import {
 } from "@tanstack/react-form";
 import { type ComponentType, type Context } from "react";
 
-import {
-  type AppFormOptions,
-  type AppFormReturn,
-  useSharedFormProps,
-} from "../core";
+import { type AppFormOptions, type AppFormReturn, useSharedFormProps } from "../core.ts";
 
-export { useOnFailure, useOnSuccess } from "../core";
+export { useOnFailure, useOnSuccess } from "../core.ts";
 
 /**
  * Creates a Zod-backed `useAppForm` (plus `withForm`) bound to the consumer's
@@ -30,7 +26,7 @@ export { useOnFailure, useOnSuccess } from "../core";
  * const { fieldContext, formContext, useFieldContext, useFormContext } =
  *   createFormHookContexts();
  *
- * export const { useAppForm, withForm } = createZodForm({
+ * export const { useAppForm, withForm } = createAppFormHook({
  *   fieldContext,
  *   formContext,
  *   fieldComponents: { Input, Checkbox },
@@ -38,7 +34,7 @@ export { useOnFailure, useOnSuccess } from "../core";
  * });
  * ```
  */
-export function createZodForm<
+export function createAppFormHook<
   TFieldComponents extends Record<string, ComponentType<any>>,
   TFormComponents extends Record<string, ComponentType<any>>,
 >(config: {

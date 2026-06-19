@@ -2,8 +2,8 @@
  * Shared runtime + types behind the Zod and Effect `useAppForm` factories.
  *
  * Everything here is independent of both the schema library and the registered
- * field/form components. Each variant factory (`createZodForm`,
- * `createEffectForm`) supplies its own typed wrapper that:
+ * field/form components. Each variant factory (`createAppFormHook`, exported
+ * from both `/zod` and `/effect`) supplies its own typed wrapper that:
  *   1. calls `createFormHook` with the consumer-provided contexts + components,
  *   2. converts its schema into a TanStack `onDynamic` validator,
  *   3. spreads `useSharedFormProps(...)` into `useAppFormBase` for the submit,
@@ -22,8 +22,7 @@ import {
   mergeForm,
   revalidateLogic,
 } from "@tanstack/react-form";
-import { type ComponentType } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { type ComponentType, useCallback, useEffect, useRef } from "react";
 import {
   type Fetcher,
   type FetcherWithComponents,
@@ -33,8 +32,8 @@ import {
   useSubmit,
 } from "react-router";
 
-import { type FormSubmitMeta } from "./app-form";
-import { objectToFormData, type SubmissionResponse } from "./server-validation";
+import { type FormSubmitMeta } from "./app-form.tsx";
+import { objectToFormData, type SubmissionResponse } from "./server-validation.ts";
 
 /** Options every variant adds on top of TanStack's `FormOptions`. */
 export type AppFormExtras<TSchema> = {
@@ -201,13 +200,8 @@ export function useSharedFormProps({
       const value: unknown = props.value;
       const meta = props.meta as FormSubmitMeta;
       meta.event?.preventDefault();
-      const method =
-        (meta.target?.method as HTMLFormMethod | undefined) ??
-        meta.method ??
-        "post";
-      const action = meta.target?.action
-        ? new URL(meta.target.action).pathname
-        : meta.action;
+      const method = (meta.target?.method as HTMLFormMethod | undefined) ?? meta.method ?? "post";
+      const action = meta.target?.action ? new URL(meta.target.action).pathname : meta.action;
       const encType =
         (meta.target?.enctype as FormEncType | undefined) ??
         meta.encType ??
@@ -242,10 +236,7 @@ export function useSharedFormProps({
  * visited and displays errors immediately, matching the behavior of fields the
  * user has already interacted with.
  */
-function mergeServerErrors(
-  baseForm: AnyFormApi,
-  serverResult: SubmissionResponse,
-): AnyFormApi {
+function mergeServerErrors(baseForm: AnyFormApi, serverResult: SubmissionResponse): AnyFormApi {
   mergeForm(baseForm, { errorMap: serverResult.errorMap });
 
   for (const [field, error] of Object.entries(serverResult.fieldErrors)) {
@@ -278,11 +269,7 @@ function mergeServerErrors(
  * touches.
  */
 const serverErrorListeners = {
-  onChange: ({
-    fieldApi,
-  }: {
-    fieldApi: { form: AnyFormApi; name: string };
-  }) => {
+  onChange: ({ fieldApi }: { fieldApi: { form: AnyFormApi; name: string } }) => {
     const meta = fieldApi.form.getFieldMeta(fieldApi.name);
     if (meta?.errorMap.onServer) {
       fieldApi.form.setFieldMeta(fieldApi.name, (prev) => ({

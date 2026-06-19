@@ -1,10 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-import {
-  formDataToObject,
-  objectToFormData,
-  parsePath,
-} from "./server-validation";
+import { formDataToObject, objectToFormData, parsePath } from "./server-validation.ts";
 
 describe("parsePath", () => {
   it("parses a simple key", () => {

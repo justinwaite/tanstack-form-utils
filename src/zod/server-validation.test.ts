@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import z from "zod";
 import invariant from "tiny-invariant";
+import { describe, expect, it } from "vite-plus/test";
+import z from "zod";
 
-import { parseSubmission } from "./server-validation";
+import { parseSubmission } from "./server-validation.ts";
 
 // Tests for the shared FormData helpers (`parsePath`, `formDataToObject`,
 // `objectToFormData`) live with their source in `../server-validation.test.ts`.
@@ -41,9 +41,7 @@ describe("parseSubmission with empty arrays", () => {
 
     expect(submission.status).toBe("success");
     invariant(submission.status === "success", "should be success");
-    expect(submission.value.lineItems).toEqual([
-      { description: "Widget", amount: "100" },
-    ]);
+    expect(submission.value.lineItems).toEqual([{ description: "Widget", amount: "100" }]);
   });
 
   it("fails validation when required array field is missing entirely", () => {

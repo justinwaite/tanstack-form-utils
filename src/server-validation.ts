@@ -1,8 +1,8 @@
 /**
  * Framework-agnostic server-validation primitives shared by the Zod and Effect
- * variants. The schema-specific entry points (`parseSubmission` for Zod,
- * `parseEffectSubmission` for Effect) live in their respective folders and build
- * on the FormData helpers and `SubmissionResponse` shape defined here.
+ * variants. The schema-specific entry points (`parseSubmission`, exported from
+ * both the `/zod` and `/effect` folders) build on the FormData helpers and
+ * `SubmissionResponse` shape defined here.
  */
 
 /**
@@ -71,9 +71,7 @@ function setNested(
  * - Non-empty File/Blob entries are preserved as-is.
  * - Duplicate flat keys (same full path) are collected into arrays.
  */
-export function formDataToObject(
-  source: FormData | URLSearchParams,
-): Record<string, unknown> {
+export function formDataToObject(source: FormData | URLSearchParams): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   const seen = new Map<string, number>();
 
@@ -86,9 +84,7 @@ export function formDataToObject(
     }
 
     const value =
-      rawValue instanceof File && rawValue.size === 0 && rawValue.name === ""
-        ? null
-        : rawValue;
+      rawValue instanceof File && rawValue.size === 0 && rawValue.name === "" ? null : rawValue;
 
     const segments = parsePath(key);
 
@@ -153,14 +149,30 @@ export function objectToFormData(obj: unknown): FormData {
       return;
     }
 
-    if (typeof value === "object" && !(value instanceof Date)) {
+    // Dates serialize via their own `toString()` before the generic object
+    // branch would otherwise recurse into them.
+    if (value instanceof Date) {
+      formData.append(prefix, value.toString());
+      return;
+    }
+
+    if (typeof value === "object") {
       for (const [key, nested] of Object.entries(value)) {
         walk(nested, prefix ? `${prefix}.${key}` : key);
       }
       return;
     }
 
-    formData.append(prefix, String(value));
+    // Remaining stringifiable primitives. (Symbols/functions can't appear in
+    // form state and are intentionally dropped.)
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint"
+    ) {
+      formData.append(prefix, String(value));
+    }
   }
 
   for (const [key, value] of Object.entries(obj)) {

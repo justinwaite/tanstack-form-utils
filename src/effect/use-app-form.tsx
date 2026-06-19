@@ -1,9 +1,9 @@
 /**
  * Effect-schema variant of the `useAppForm` factory.
  *
- * Identical to `createZodForm` except the schema is an Effect `Schema.Decoder`
+ * Identical to the `/zod` variant except the schema is an Effect `Schema.Decoder`
  * (converted to Standard Schema V1 internally) instead of a Zod schema. Pair
- * with `parseEffectSubmission` on the server so one Effect schema validates both
+ * with `parseSubmission` on the server so one Effect schema validates both
  * client and server.
  *
  * Note: Effect's `toStandardSchemaV1` returns `StandardSchemaV1<unknown, T>`
@@ -23,13 +23,9 @@ import {
 import { Schema } from "effect";
 import { type ComponentType, type Context } from "react";
 
-import {
-  type AppFormOptions,
-  type AppFormReturn,
-  useSharedFormProps,
-} from "../core";
+import { type AppFormOptions, type AppFormReturn, useSharedFormProps } from "../core.ts";
 
-export { useOnFailure, useOnSuccess } from "../core";
+export { useOnFailure, useOnSuccess } from "../core.ts";
 
 /**
  * Converts an Effect `Schema.Decoder` to a TanStack-compatible `FormValidateOrFn`.
@@ -47,11 +43,11 @@ function toFormValidator<TFormData>(
 
 /**
  * Creates an Effect-backed `useAppForm` (plus `withForm`) bound to the
- * consumer's own field/form components and form contexts. See `createZodForm`
- * for the consumer setup pattern — this differs only in accepting a
+ * consumer's own field/form components and form contexts. See the `/zod`
+ * variant for the consumer setup pattern — this differs only in accepting a
  * `Schema.Decoder` for `schema`.
  */
-export function createEffectForm<
+export function createAppFormHook<
   TFieldComponents extends Record<string, ComponentType<any>>,
   TFormComponents extends Record<string, ComponentType<any>>,
 >(config: {

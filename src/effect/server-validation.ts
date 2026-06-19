@@ -1,10 +1,8 @@
 import { Data, Effect, Schema, SchemaIssue } from "effect";
 
-import {
-  formDataToObject,
-  type SubmissionResponse,
-} from "../server-validation";
-import { FormDataError, parseFormData } from "./parse-form-data";
+import { formDataToObject, type SubmissionResponse } from "../server-validation.ts";
+import { coerceFormValue } from "./coercion.ts";
+import { FormDataError, parseFormData } from "./parse-form-data.ts";
 
 /**
  * Signals a form validation failure. The reply is returned (not thrown) so
@@ -12,9 +10,7 @@ import { FormDataError, parseFormData } from "./parse-form-data";
  * Pair with a 4xx `init.status` so the response is correctly classified in
  * browser dev tools and server logs.
  */
-export class FormValidationError<FE = unknown> extends Data.TaggedError(
-  "FormValidationError",
-)<{
+export class FormValidationError<FE = unknown> extends Data.TaggedError("FormValidationError")<{
   readonly reply: FE;
   readonly init?: ResponseInit;
 }> {}
@@ -22,11 +18,11 @@ export class FormValidationError<FE = unknown> extends Data.TaggedError(
 // ─── Effect-schema form parsing ───────────────────────────────────────────────
 
 /**
- * The reply function returned by a successful `parseEffectSubmission` call.
+ * The reply function returned by a successful `parseSubmission` call.
  * Calling it with no arguments produces a success `SubmissionResponse`; passing
  * `formErrors` / `fieldErrors` lets you attach manual server-side annotations.
  */
-export type EffectSubmissionReplyFn = (opts?: {
+export type SubmissionReplyFn = (opts?: {
   formErrors?: string[];
   fieldErrors?: Partial<Record<string, string>>;
 }) => SubmissionResponse;
@@ -35,9 +31,7 @@ export type EffectSubmissionReplyFn = (opts?: {
 const issueFormatter = SchemaIssue.makeFormatterStandardSchemaV1();
 
 /** Normalises a Standard Schema V1 path segment to a string key. */
-function pathSegmentToString(
-  segment: PropertyKey | { readonly key: PropertyKey },
-): string {
+function pathSegmentToString(segment: PropertyKey | { readonly key: PropertyKey }): string {
   if (typeof segment === "object" && segment !== null) {
     return String((segment as { key: PropertyKey }).key);
   }
@@ -55,8 +49,7 @@ function schemaFailureToResponse(
     if (!issue.path || issue.path.length === 0) {
       formErrors.push(issue.message);
     } else {
-      fieldErrors[issue.path.map(pathSegmentToString).join(".")] =
-        issue.message;
+      fieldErrors[issue.path.map(pathSegmentToString).join(".")] = issue.message;
     }
   }
 
@@ -67,13 +60,12 @@ function schemaFailureToResponse(
   };
 }
 
-/** Builds a reply function for the success branch of `parseEffectSubmission`. */
-function makeSubmissionReplyFn(): EffectSubmissionReplyFn {
+/** Builds a reply function for the success branch of `parseSubmission`. */
+function makeSubmissionReplyFn(): SubmissionReplyFn {
   return function reply(opts): SubmissionResponse {
     const formErrors = opts?.formErrors;
     const fieldErrors = opts?.fieldErrors ?? {};
-    const hasErrors =
-      (formErrors?.length ?? 0) > 0 || Object.values(fieldErrors).some(Boolean);
+    const hasErrors = (formErrors?.length ?? 0) > 0 || Object.values(fieldErrors).some(Boolean);
     return {
       success: !hasErrors,
       errorMap: { onServer: formErrors?.length ? formErrors : undefined },
@@ -82,8 +74,8 @@ function makeSubmissionReplyFn(): EffectSubmissionReplyFn {
   };
 }
 
-type ParseEffectSubmissionResult<A> = Effect.Effect<
-  { value: A; reply: EffectSubmissionReplyFn },
+type ParseSubmissionResult<A> = Effect.Effect<
+  { value: A; reply: SubmissionReplyFn },
   FormValidationError<{ reply: SubmissionResponse }> | FormDataError
 >;
 
@@ -94,7 +86,7 @@ type ParseEffectSubmissionResult<A> = Effect.Effect<
  * conversion, and schema decoding — into a single yieldable Effect:
  *
  * ```ts
- * const { value, reply } = yield* parseEffectSubmission(request, { schema: MySchema });
+ * const { value, reply } = yield* parseSubmission(request, { schema: MySchema });
  * return { reply: reply(), result: value.name };
  * ```
  *
@@ -109,13 +101,13 @@ type ParseEffectSubmissionResult<A> = Effect.Effect<
  * (defaults to 400). On success, call `reply()` to produce a `SubmissionResponse`
  * with `success: true` to pass back as `actionData`.
  */
-export function parseEffectSubmission<A>(
+export function parseSubmission<A>(
   request: Request,
   options: {
     schema: Schema.Decoder<A>;
     init?: ResponseInit;
   },
-): ParseEffectSubmissionResult<A> {
+): ParseSubmissionResult<A> {
   const validationInit = options.init ?? { status: 400 };
 
   const toFormError = (
@@ -129,7 +121,9 @@ export function parseEffectSubmission<A>(
   return Effect.gen(function* () {
     const fd = yield* parseFormData(request);
 
-    const input = formDataToObject(fd);
+    // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
+    // the server validates the same shape the client did.
+    const input = coerceFormValue(options.schema, formDataToObject(fd));
 
     const value = yield* Schema.decodeUnknownEffect(options.schema)(input).pipe(
       Effect.mapError((schemaError) =>

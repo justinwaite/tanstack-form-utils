@@ -1,8 +1,5 @@
 import { Data, Effect } from "effect";
-import {
-  HttpServerRespondable,
-  HttpServerResponse,
-} from "effect/unstable/http";
+import { HttpServerRespondable, HttpServerResponse } from "effect/unstable/http";
 
 /**
  * Error raised when form data cannot be parsed from the request body.
@@ -15,10 +12,9 @@ export class FormDataError extends Data.TaggedError("FormDataError")<{
 }> {
   /** Renders a 422 response when this error is surfaced as a defect on the HTTP API. */
   [HttpServerRespondable.symbol](): Effect.Effect<HttpServerResponse.HttpServerResponse> {
-    return HttpServerResponse.json(
-      { error: "Invalid request body" },
-      { status: 422 },
-    ).pipe(Effect.orDie);
+    return HttpServerResponse.json({ error: "Invalid request body" }, { status: 422 }).pipe(
+      Effect.orDie,
+    );
   }
 }
 
@@ -26,9 +22,7 @@ export class FormDataError extends Data.TaggedError("FormDataError")<{
  * Parses form data from an HTTP request. Fails with `FormDataError` if the
  * body cannot be read as `multipart/form-data` or `application/x-www-form-urlencoded`.
  */
-export const parseFormData = (
-  request: Request,
-): Effect.Effect<FormData, FormDataError> =>
+export const parseFormData = (request: Request): Effect.Effect<FormData, FormDataError> =>
   Effect.tryPromise({
     try: () => request.formData(),
     catch: (cause) => new FormDataError({ cause }),

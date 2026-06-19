@@ -2,17 +2,15 @@ import type { $ZodType, input, output } from "zod/v4/core";
 
 import z from "zod";
 
-import {
-  formDataToObject,
-  type SubmissionResponse,
-} from "../server-validation";
+import { formDataToObject, type SubmissionResponse } from "../server-validation.ts";
+import { coerceFormValue } from "./coercion.ts";
 
 export {
   formDataToObject,
   objectToFormData,
   parsePath,
   type SubmissionResponse,
-} from "../server-validation";
+} from "../server-validation.ts";
 
 type Submission<Schema extends $ZodType> =
   | {
@@ -27,14 +25,20 @@ type Submission<Schema extends $ZodType> =
     };
 
 export function parseSubmission<Schema extends $ZodType>(
-  payload: FormData | URLSearchParams | unknown,
+  // `FormData`/`URLSearchParams` are normalized below; any other value (e.g. an
+  // already-parsed action payload) is passed straight to the schema.
+  payload: unknown,
   { schema }: { schema: Schema },
 ): Submission<Schema> {
   const normalizedPayload =
     payload instanceof FormData || payload instanceof URLSearchParams
       ? formDataToObject(payload)
       : payload;
-  const result = z.safeParse(schema, normalizedPayload);
+  // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
+  // the server validates the same shape the client did. Already-typed values
+  // pass through untouched, so this is safe for non-FormData payloads too.
+  const coercedPayload = coerceFormValue(schema, normalizedPayload);
+  const result = z.safeParse(schema, coercedPayload);
   if (result.success) {
     return {
       status: "success",
@@ -70,9 +74,7 @@ function createReplyFn<TSchema>(error?: z.ZodError<output<TSchema>>) {
       ...options?.fieldErrors,
     } as Partial<Record<string, string>>;
     const hasErrors =
-      !!errorMap.onServer?.length ||
-      !!error ||
-      Object.values(fieldErrors).some(Boolean);
+      !!errorMap.onServer?.length || !!error || Object.values(fieldErrors).some(Boolean);
     return {
       success: !hasErrors,
       errorMap,
