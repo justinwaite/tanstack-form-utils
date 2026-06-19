@@ -23,7 +23,9 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx"
   ],
   "type": "module",
   "exports": {
@@ -40,10 +42,15 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "check": "vp check",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:release": "vp run build && changeset publish",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
     "@tanstack/react-form": "^1.33.0",
     "@tsconfig/vite-react": "^8.0.6",
     "@types/react": "^19.2.17",
