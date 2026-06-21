@@ -43,7 +43,7 @@ export function createAppFormHook<
   fieldContext: Context<AnyFieldApi>;
   formContext: Context<AnyFormApi>;
 }) {
-  const { useAppForm: useAppFormBase, withForm } = createFormHook(config);
+  const { useAppForm: useAppFormBase, ...exports } = createFormHook(config);
 
   /**
    * App-level wrapper around TanStack Form's `useAppForm` that provides
@@ -133,5 +133,5 @@ export function createAppFormHook<
     return hook as never;
   }
 
-  return { useAppForm, withForm };
+  return { useAppForm, ...exports };
 }
