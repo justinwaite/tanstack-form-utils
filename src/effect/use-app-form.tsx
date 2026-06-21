@@ -56,7 +56,7 @@ export function createAppFormHook<
   fieldContext: Context<AnyFieldApi>;
   formContext: Context<AnyFormApi>;
 }) {
-  const { useAppForm: useAppFormBase, withForm } = createFormHook(config);
+  const { useAppForm: useAppFormBase, ...exports } = createFormHook(config);
 
   /**
    * Effect-schema counterpart of `useAppForm`. Accepts a `Schema.Decoder` in
@@ -142,5 +142,5 @@ export function createAppFormHook<
     return hook as never;
   }
 
-  return { useAppForm, withForm };
+  return { useAppForm, ...exports };
 }
