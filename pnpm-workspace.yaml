@@ -5,6 +5,12 @@ catalog:
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
+  # node-fetch@2 (pulled in only by @changesets/get-github-info for changelog
+  # PR/author links) throws ERR_STREAM_PREMATURE_CLOSE reading GitHub's GraphQL
+  # response on Node 22.23+/24.17+ (CVE-2026-48931 keep-alive change), which
+  # breaks `changeset version`. Redirect it to a shim over Node's native fetch.
+  # See https://github.com/nodejs/node/issues/63989 and ./tooling/node-fetch-shim
+  "@changesets/get-github-info>node-fetch": "file:./tooling/node-fetch-shim"
 peerDependencyRules:
   allowAny:
     - vite
