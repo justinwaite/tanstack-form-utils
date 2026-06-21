@@ -1,0 +1,8 @@
+{
+  "name": "node-fetch",
+  "version": "2.7.0",
+  "private": true,
+  "description": "Local shim that redirects node-fetch@2 to Node's native (undici) fetch. See index.cjs for why.",
+  "license": "MIT",
+  "main": "index.cjs"
+}
