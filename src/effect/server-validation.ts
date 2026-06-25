@@ -10,8 +10,8 @@ import { FormDataError, parseFormData } from "./parse-form-data.ts";
  * Pair with a 4xx `init.status` so the response is correctly classified in
  * browser dev tools and server logs.
  */
-export class FormValidationError<FE = unknown> extends Data.TaggedError("FormValidationError")<{
-  readonly reply: FE;
+export class FormValidationError extends Data.TaggedError("FormValidationError")<{
+  readonly reply: SubmissionResponse;
   readonly init?: ResponseInit;
 }> {}
 
@@ -76,7 +76,7 @@ function makeSubmissionReplyFn(): SubmissionReplyFn {
 
 type ParseSubmissionResult<A> = Effect.Effect<
   { value: A; reply: SubmissionReplyFn },
-  FormValidationError<{ reply: SubmissionResponse }> | FormDataError
+  FormValidationError | FormDataError
 >;
 
 /**
@@ -110,11 +110,9 @@ export function parseSubmission<A>(
 ): ParseSubmissionResult<A> {
   const validationInit = options.init ?? { status: 400 };
 
-  const toFormError = (
-    response: SubmissionResponse,
-  ): FormValidationError<{ reply: SubmissionResponse }> =>
+  const toFormError = (response: SubmissionResponse): FormValidationError =>
     new FormValidationError({
-      reply: { reply: response },
+      reply: response,
       init: validationInit,
     });
 
