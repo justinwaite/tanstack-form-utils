@@ -4,7 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { coerceFormValue } from "./coercion.ts";
 
 /** Decode a value against a schema, returning the typed result or throwing. */
-function decode<A>(schema: Schema.Decoder<A>, value: unknown): A {
+function decode<A>(schema: Schema.Codec<A, unknown>, value: unknown): A {
   return Effect.runSync(Schema.decodeUnknownEffect(schema)(value));
 }
 
