@@ -1,7 +1,7 @@
 /**
  * Effect-schema variant of the `useAppForm` factory.
  *
- * Identical to the `/zod` variant except the schema is an Effect `Schema.Decoder`
+ * Identical to the `/zod` variant except the schema is an Effect `Schema.Codec`
  * (converted to Standard Schema V1 internally) instead of a Zod schema. Pair
  * with `parseSubmission` on the server so one Effect schema validates both
  * client and server.
@@ -28,7 +28,7 @@ import { type AppFormOptions, type AppFormReturn, useSharedFormProps } from "../
 export { useOnFailure, useOnSuccess } from "../core.ts";
 
 /**
- * Converts an Effect `Schema.Decoder` to a TanStack-compatible `FormValidateOrFn`.
+ * Converts an Effect `Schema.Codec` to a TanStack-compatible `FormValidateOrFn`.
  *
  * Effect's `toStandardSchemaV1` returns `StandardSchemaV1<Encoded, Type>` while
  * TanStack's `FormValidateOrFn` requires `StandardSchemaV1<Input, Output>` with
@@ -36,7 +36,7 @@ export { useOnFailure, useOnSuccess } from "../core.ts";
  * `~standard.types` annotation differs. This targeted cast bridges the nominal gap.
  */
 function toFormValidator<TFormData>(
-  schema: Schema.Decoder<TFormData>,
+  schema: Schema.Codec<TFormData, unknown>,
 ): FormValidateOrFn<TFormData> {
   return Schema.toStandardSchemaV1(schema) as FormValidateOrFn<TFormData>;
 }
@@ -45,7 +45,7 @@ function toFormValidator<TFormData>(
  * Creates an Effect-backed `useAppForm` (plus `withForm`) bound to the
  * consumer's own field/form components and form contexts. See the `/zod`
  * variant for the consumer setup pattern — this differs only in accepting a
- * `Schema.Decoder` for `schema`.
+ * `Schema.Codec` for `schema`.
  */
 export function createAppFormHook<
   TFieldComponents extends Record<string, ComponentType<any>>,
@@ -59,7 +59,7 @@ export function createAppFormHook<
   const { useAppForm: useAppFormBase, ...exports } = createFormHook(config);
 
   /**
-   * Effect-schema counterpart of `useAppForm`. Accepts a `Schema.Decoder` in
+   * Effect-schema counterpart of `useAppForm`. Accepts a `Schema.Codec` in
    * place of a Zod schema; field registration, submission, server-error merging,
    * and `onServerSuccess` / `onServerFailure` behave identically.
    *
@@ -103,7 +103,7 @@ export function createAppFormHook<
     TOnDynamicAsync,
     TOnServer,
     TSubmitMeta,
-    Schema.Decoder<TFormData>
+    Schema.Codec<TFormData, unknown>
   >): AppFormReturn<
     TFormData,
     TOnMount,

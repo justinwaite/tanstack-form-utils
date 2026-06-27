@@ -104,7 +104,7 @@ type ParseSubmissionResult<A> = Effect.Effect<
 export function parseSubmission<A>(
   request: Request,
   options: {
-    schema: Schema.Decoder<A>;
+    schema: Schema.Codec<A, unknown>;
     init?: ResponseInit;
   },
 ): ParseSubmissionResult<A> {
