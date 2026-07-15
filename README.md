@@ -266,6 +266,11 @@ export default function Signup({ actionData }) {
 validation error it fails with `FormValidationError`, whose `reply` you return
 so React Router populates `actionData` without hitting the error boundary.
 
+It picks the body-parse strategy from the request's `Content-Type`: a JSON
+media type (`application/json`, `*+json`) is read with `request.json()` and
+fails with `JsonBodyError` on malformed JSON; anything else is read as
+`FormData` (fails with `FormDataError`).
+
 ```ts
 import { Effect } from "effect";
 import { parseSubmission, FormValidationError } from "@justinwaite/tanstack-form-utils/effect";

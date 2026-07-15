@@ -53,3 +53,18 @@ describe("parseSubmission with empty arrays", () => {
     expect(submission.status).toBe("error");
   });
 });
+
+describe("parseSubmission with a JSON payload", () => {
+  const signupSchema = z.object({
+    name: z.string(),
+    age: z.number(),
+  });
+
+  it("passes an already-parsed JSON body through untouched (e.g. from request.json())", () => {
+    const submission = parseSubmission({ name: "Jane", age: 30 }, { schema: signupSchema });
+
+    expect(submission.status).toBe("success");
+    invariant(submission.status === "success", "should be success");
+    expect(submission.value).toEqual({ name: "Jane", age: 30 });
+  });
+});

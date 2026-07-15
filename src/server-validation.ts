@@ -108,6 +108,18 @@ export function formDataToObject(source: FormData | URLSearchParams): Record<str
 }
 
 /**
+ * Returns true when a request's `Content-Type` header denotes a JSON body
+ * (`application/json`, or a `+json` structured syntax suffix such as
+ * `application/vnd.api+json`).
+ */
+export function isJsonContentType(request: Request): boolean {
+  const contentType = request.headers.get("content-type");
+  if (!contentType) return false;
+  const mediaType = contentType.split(";")[0]?.trim().toLowerCase();
+  return mediaType === "application/json" || !!mediaType?.endsWith("+json");
+}
+
+/**
  * Converts a nested object (e.g. TanStack Form state) into FormData using
  * dot-notation paths that mirror TanStack Form's field naming convention.
  *
