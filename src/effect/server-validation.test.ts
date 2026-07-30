@@ -63,7 +63,7 @@ describe("parseSubmission content-type handling", () => {
     expect(value).toEqual({ name: "Jane", age: 30 });
   });
 
-  it("fails with JsonBodyError when the JSON body is malformed", async () => {
+  it("fails with InvalidBodyError when the JSON body is malformed", async () => {
     const request = new Request("https://example.com", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -267,9 +267,10 @@ validation error it fails with `FormValidationError`, whose `reply` you return
 so React Router populates `actionData` without hitting the error boundary.
 
 It picks the body-parse strategy from the request's `Content-Type`: a JSON
-media type (`application/json`, `*+json`) is read with `request.json()` and
-fails with `JsonBodyError` on malformed JSON; anything else is read as
-`FormData` (fails with `FormDataError`).
+media type (`application/json`, `*+json`) is read with `request.json()`.
+Anything else is read via `request.formData()`.
+If the request body parsing fails (invalid/malformed json or formdata), the
+Effect will raise an `InvalidBodyError`.
 
 ```ts
 import { Effect } from "effect";
