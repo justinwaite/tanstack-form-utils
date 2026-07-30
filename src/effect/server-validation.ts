@@ -1,9 +1,14 @@
 import { Data, Effect, Schema, SchemaIssue } from "effect";
 
-import { formDataToObject, type SubmissionResponse } from "../server-validation.ts";
+import {
+  formDataToObject,
+  isJsonContentType,
+  type SubmissionResponse,
+} from "../server-validation.ts";
+import type { InvalidBodyError } from "./body-error.ts";
 import { coerceFormValue } from "./coercion.ts";
-import { FormDataError, parseFormData } from "./parse-form-data.ts";
-
+import { parseFormData } from "./parse-form-data.ts";
+import { parseJsonBody } from "./parse-json-body.ts";
 /**
  * Signals a form validation failure. The reply is returned (not thrown) so
  * React Router populates `actionData` without triggering the error boundary.
@@ -76,14 +81,17 @@ function makeSubmissionReplyFn(): SubmissionReplyFn {
 
 type ParseSubmissionResult<A> = Effect.Effect<
   { value: A; reply: SubmissionReplyFn },
-  FormValidationError | FormDataError
+  FormValidationError | InvalidBodyError
 >;
 
 /**
- * Parses and validates form data from a request using an Effect schema.
+ * Parses and validates a submission from a request using an Effect schema.
  *
- * Combines three steps that are otherwise manual — body parsing, object
- * conversion, and schema decoding — into a single yieldable Effect:
+ * The `Content-Type` header selects the parse strategy: a JSON media type
+ * (`application/json`, `*+json`) is read with `request.json()`; anything else
+ * is read as `FormData` and converted to an object via `formDataToObject`.
+ * Combines that body parsing with schema decoding into a single yieldable
+ * Effect:
  *
  * ```ts
  * const { value, reply } = yield* parseSubmission(request, { schema: MySchema });
@@ -117,11 +125,13 @@ export function parseSubmission<A>(
     });
 
   return Effect.gen(function* () {
-    const fd = yield* parseFormData(request);
+    const rawInput = isJsonContentType(request)
+      ? yield* parseJsonBody(request)
+      : formDataToObject(yield* parseFormData(request));
 
     // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
     // the server validates the same shape the client did.
-    const input = coerceFormValue(options.schema, formDataToObject(fd));
+    const input = coerceFormValue(options.schema, rawInput);
 
     const value = yield* Schema.decodeUnknownEffect(options.schema)(input).pipe(
       Effect.mapError((schemaError) =>
