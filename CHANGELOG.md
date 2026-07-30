@@ -1,5 +1,13 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.4.0
+
+### Minor Changes
+
+- [#15](https://github.com/justinwaite/tanstack-form-utils/pull/15) [`0a0cf5a`](https://github.com/justinwaite/tanstack-form-utils/commit/0a0cf5abf9126209423887ffe1a8afc04fab90ca) Thanks [@Mando75](https://github.com/Mando75)! - Adds dynamic content-type parsing support. Will detect whether the request is json or form data and use the appropriate request body parser to validate the body against the given schema.
+
+  Consolidates the FormDataError into an InvalidBodyError that is raised when an invalid request body is provided.
+
 ## 0.3.0
 
 ### Minor Changes
