@@ -1,5 +1,11 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.4.1
+
+### Patch Changes
+
+- [#35](https://github.com/justinwaite/tanstack-form-utils/pull/35) [`9f1cc37`](https://github.com/justinwaite/tanstack-form-utils/commit/9f1cc376c7d722378cd1ce81312eccb4b0d30deb) Thanks [@Mando75](https://github.com/Mando75)! - bump peers to react router 8 and effect 4.101
+
 ## 0.4.0
 
 ### Minor Changes
