@@ -7,8 +7,8 @@
 import { Effect, Schema } from "effect";
 import { useState } from "react";
 import { useActionData } from "react-router";
-import { describe, expect, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import { type SubmissionResponse } from "../src/server-validation.ts";
 import { parseSubmission } from "../src/effect/index.ts";
