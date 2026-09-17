@@ -1,5 +1,11 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.4.2
+
+### Patch Changes
+
+- [#39](https://github.com/justinwaite/tanstack-form-utils/pull/39) [`2ec6be6`](https://github.com/justinwaite/tanstack-form-utils/commit/2ec6be6473dc0db82dc3858f6893e415aa9cf488) Thanks [@Mando75](https://github.com/Mando75)! - bump dependencies
+
 ## 0.4.1
 
 ### Patch Changes
