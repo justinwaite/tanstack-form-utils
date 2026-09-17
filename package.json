@@ -52,8 +52,8 @@
     "prepare": "vp config"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.2",
     "@tanstack/react-form": "^1.33.0",
     "@tsconfig/vite-react": "^8.0.6",
     "@types/react": "^19.2.17",
@@ -61,7 +61,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/browser-playwright": "catalog:",
     "effect": "4.0.0-beta.101",
-    "playwright": "1.60.0",
+    "playwright": "1.63.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "8.3.1",
