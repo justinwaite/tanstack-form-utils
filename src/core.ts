@@ -255,6 +255,7 @@ function mergeServerErrors(baseForm: AnyFormApi, serverResult: SubmissionRespons
         errorMap: { onServer: issueFormat },
         errorSourceMap: {},
         _arrayVersion: 0,
+        _pendingValidationsCount: 0,
       };
     }
   }

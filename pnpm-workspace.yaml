@@ -1,8 +1,8 @@
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.3.2
-  vitest: 4.1.11
+  vitest: 5.0.1
   vite-plus: 0.3.2
-  "@vitest/browser-playwright": 4.1.11
+  "@vitest/browser-playwright": 5.0.1
 overrides:
   # node-fetch@2 (pulled in only by @changesets/get-github-info for changelog
   # PR/author links) throws ERR_STREAM_PREMATURE_CLOSE reading GitHub's GraphQL
