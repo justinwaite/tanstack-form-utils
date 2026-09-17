@@ -5,8 +5,8 @@
  */
 import { useState } from "react";
 import { useActionData, useFetcher } from "react-router";
-import { describe, expect, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import z from "zod";
 
 import { parseSubmission, type SubmissionResponse } from "../src/zod/index.ts";
