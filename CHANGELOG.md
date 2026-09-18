@@ -1,5 +1,11 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.4.3
+
+### Patch Changes
+
+- [#41](https://github.com/justinwaite/tanstack-form-utils/pull/41) [`3d34640`](https://github.com/justinwaite/tanstack-form-utils/commit/3d3464079f8795b730be0400e296bc1a5eea5a77) Thanks [@Mando75](https://github.com/Mando75)! - add more dynamic parsing behavior for urlsearchparams and generic json input
+
 ## 0.4.2
 
 ### Patch Changes
