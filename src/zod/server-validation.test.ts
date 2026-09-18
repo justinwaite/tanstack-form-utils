@@ -52,6 +52,33 @@ describe("parseSubmission with empty arrays", () => {
 
     expect(submission.status).toBe("error");
   });
+
+  it("throws a clear error for a colliding FormData key path instead of a raw TypeError", () => {
+    const fd = new FormData();
+    fd.append("name", "Invoice #1");
+    fd.append("name.first", "Jo");
+
+    expect(() => parseSubmission(fd, { schema: invoiceSchema })).toThrow(
+      "Malformed form submission",
+    );
+  });
+});
+
+describe("parseSubmission with a query string", () => {
+  const signupSchema = z.object({
+    name: z.string(),
+    age: z.coerce.number(),
+  });
+
+  it("parses a URLSearchParams instance directly (e.g. a GET request's query string)", () => {
+    const params = new URLSearchParams({ name: "Jane", age: "30" });
+
+    const submission = parseSubmission(params, { schema: signupSchema });
+
+    expect(submission.status).toBe("success");
+    invariant(submission.status === "success", "should be success");
+    expect(submission.value).toEqual({ name: "Jane", age: 30 });
+  });
 });
 
 describe("parseSubmission with a JSON payload", () => {

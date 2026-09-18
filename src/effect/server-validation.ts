@@ -5,7 +5,7 @@ import {
   isJsonContentType,
   type SubmissionResponse,
 } from "../server-validation.ts";
-import type { InvalidBodyError } from "./body-error.ts";
+import { InvalidBodyError } from "./body-error.ts";
 import { coerceFormValue } from "./coercion.ts";
 import { parseFormData } from "./parse-form-data.ts";
 import { parseJsonBody } from "./parse-json-body.ts";
@@ -85,13 +85,63 @@ type ParseSubmissionResult<A> = Effect.Effect<
 >;
 
 /**
- * Parses and validates a submission from a request using an Effect schema.
+ * Converts `FormData`/`URLSearchParams` entries to an object (see
+ * `formDataToObject`). Fails with `InvalidBodyError` for a malformed key path
+ * (e.g. both `"name"` and `"name.first"` submitted).
+ */
+const tryFormDataToObject = (
+  source: FormData | URLSearchParams,
+): Effect.Effect<unknown, InvalidBodyError> =>
+  Effect.try({
+    try: () => formDataToObject(source),
+    catch: (cause) => new InvalidBodyError({ cause }),
+  });
+
+/**
+ * Reads the raw, still-string-typed payload out of a `parseSubmission` input.
  *
- * The `Content-Type` header selects the parse strategy: a JSON media type
- * (`application/json`, `*+json`) is read with `request.json()`; anything else
- * is read as `FormData` and converted to an object via `formDataToObject`.
- * Combines that body parsing with schema decoding into a single yieldable
- * Effect:
+ * - A `Request` is read according to its method/`Content-Type`: a `GET`/`HEAD`
+ *   request has no body, so its URL's query string is read instead; a JSON
+ *   media type (`application/json`, `*+json`) is read with `request.json()`;
+ *   anything else is read as `FormData`.
+ * - `FormData`/`URLSearchParams` (e.g. already extracted from a request) are
+ *   converted directly.
+ * - Any other JSON value (an already-parsed action payload, e.g. a JSON body —
+ *   an object, array, string, number, boolean, or `null`) is passed through
+ *   as-is.
+ *
+ * Fails with `InvalidBodyError` if the URL, body, or form key paths can't be parsed.
+ */
+function resolveRawInput(
+  payload: Request | FormData | URLSearchParams | Schema.Json,
+): Effect.Effect<unknown, InvalidBodyError> {
+  if (payload instanceof FormData || payload instanceof URLSearchParams) {
+    return tryFormDataToObject(payload);
+  }
+
+  if (payload instanceof Request) {
+    const isBodylessMethod = payload.method === "GET" || payload.method === "HEAD";
+    if (isBodylessMethod) {
+      return Effect.try({
+        try: () => new URL(payload.url).searchParams,
+        catch: (cause) => new InvalidBodyError({ cause }),
+      }).pipe(Effect.flatMap(tryFormDataToObject));
+    }
+    return isJsonContentType(payload)
+      ? parseJsonBody(payload)
+      : parseFormData(payload).pipe(Effect.flatMap(tryFormDataToObject));
+  }
+
+  return Effect.succeed(payload);
+}
+
+/**
+ * Parses and validates a submission using an Effect schema.
+ *
+ * Accepts a `Request`, a `FormData`/`URLSearchParams` instance, or an
+ * already-parsed payload (e.g. a JSON action body) — see {@link resolveRawInput}
+ * for how each is read. Combines that body parsing with schema decoding into a
+ * single yieldable Effect:
  *
  * ```ts
  * const { value, reply } = yield* parseSubmission(request, { schema: MySchema });
@@ -110,7 +160,7 @@ type ParseSubmissionResult<A> = Effect.Effect<
  * with `success: true` to pass back as `actionData`.
  */
 export function parseSubmission<A>(
-  request: Request,
+  payload: Request | FormData | URLSearchParams | Schema.Json,
   options: {
     schema: Schema.Codec<A, unknown>;
     init?: ResponseInit;
@@ -125,9 +175,7 @@ export function parseSubmission<A>(
     });
 
   return Effect.gen(function* () {
-    const rawInput = isJsonContentType(request)
-      ? yield* parseJsonBody(request)
-      : formDataToObject(yield* parseFormData(request));
+    const rawInput = yield* resolveRawInput(payload);
 
     // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
     // the server validates the same shape the client did.
