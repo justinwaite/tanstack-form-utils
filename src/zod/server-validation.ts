@@ -30,10 +30,19 @@ export function parseSubmission<Schema extends $ZodType>(
   payload: unknown,
   { schema }: { schema: Schema },
 ): Submission<Schema> {
-  const normalizedPayload =
-    payload instanceof FormData || payload instanceof URLSearchParams
-      ? formDataToObject(payload)
-      : payload;
+  let normalizedPayload: unknown;
+  if (payload instanceof FormData || payload instanceof URLSearchParams) {
+    try {
+      normalizedPayload = formDataToObject(payload);
+    } catch (cause) {
+      // A malformed key path (e.g. both `"name"` and `"name.first"` submitted)
+      // makes `formDataToObject` throw; surface that as a clear, catchable
+      // error instead of the raw "Cannot create property" TypeError.
+      throw new Error("Malformed form submission: conflicting field name paths", { cause });
+    }
+  } else {
+    normalizedPayload = payload;
+  }
   // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
   // the server validates the same shape the client did. Already-typed values
   // pass through untouched, so this is safe for non-FormData payloads too.
