@@ -180,6 +180,22 @@ describe("formDataToObject", () => {
       page: "1",
     });
   });
+
+  it("rejects a flat key followed by a conflicting nested key", () => {
+    const fd = new FormData();
+    fd.append("name", "Jane");
+    fd.append("name.first", "Jo");
+
+    expect(() => formDataToObject(fd)).toThrow(/Conflicting form field paths/);
+  });
+
+  it("rejects a nested key followed by a conflicting flat key", () => {
+    const fd = new FormData();
+    fd.append("name.first", "Jo");
+    fd.append("name", "Jane");
+
+    expect(() => formDataToObject(fd)).toThrow(/Conflicting form field paths/);
+  });
 });
 
 describe("objectToFormData", () => {

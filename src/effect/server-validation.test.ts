@@ -142,4 +142,19 @@ describe("parseSubmission with a non-Request payload", () => {
 
     expect(result).toBe("invalid-body-error");
   });
+
+  it("surfaces a colliding FormData key path as InvalidBodyError regardless of entry order", async () => {
+    const fd = new FormData();
+    fd.append("name.first", "Jo");
+    fd.append("name", "Jane");
+
+    const result = await Effect.runPromise(
+      parseSubmission(fd, { schema: SignupSchema }).pipe(
+        Effect.map(() => "success" as const),
+        Effect.catchTag("InvalidBodyError", () => Effect.succeed("invalid-body-error" as const)),
+      ),
+    );
+
+    expect(result).toBe("invalid-body-error");
+  });
 });

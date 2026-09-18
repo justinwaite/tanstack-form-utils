@@ -98,42 +98,51 @@ const tryFormDataToObject = (
   });
 
 /**
- * Reads the raw, still-string-typed payload out of a `parseSubmission` input.
+ * Resolves a `parseSubmission` payload down to `FormData`/`URLSearchParams`
+ * or an already-parsed JSON value, reading a `Request`'s body/query string
+ * when one is given.
  *
- * - A `Request` is read according to its method/`Content-Type`: a `GET`/`HEAD`
- *   request has no body, so its URL's query string is read instead; a JSON
- *   media type (`application/json`, `*+json`) is read with `request.json()`;
- *   anything else is read as `FormData`.
- * - `FormData`/`URLSearchParams` (e.g. already extracted from a request) are
- *   converted directly.
- * - Any other JSON value (an already-parsed action payload, e.g. a JSON body —
- *   an object, array, string, number, boolean, or `null`) is passed through
- *   as-is.
+ * - A `GET`/`HEAD` request has no body, so its URL's query string is read
+ *   instead.
+ * - A JSON media type (`application/json`, `*+json`) is read with
+ *   `request.json()`; anything else is read as `FormData`.
+ * - A `FormData`/`URLSearchParams`/JSON value passed directly is returned
+ *   unchanged.
+ *
+ * Fails with `InvalidBodyError` if the URL or body can't be read.
+ */
+const resolveEntries = (
+  payload: Request | FormData | URLSearchParams | Schema.Json,
+): Effect.Effect<unknown, InvalidBodyError> => {
+  if (!(payload instanceof Request)) return Effect.succeed(payload);
+
+  if (payload.method === "GET" || payload.method === "HEAD") {
+    return Effect.try({
+      try: () => new URL(payload.url).searchParams,
+      catch: (cause) => new InvalidBodyError({ cause }),
+    });
+  }
+
+  return isJsonContentType(payload) ? parseJsonBody(payload) : parseFormData(payload);
+};
+
+/**
+ * Reads the raw, still-string-typed payload out of a `parseSubmission` input
+ * (see {@link resolveEntries}), converting a `FormData`/`URLSearchParams`
+ * result into a plain object via `formDataToObject`.
  *
  * Fails with `InvalidBodyError` if the URL, body, or form key paths can't be parsed.
  */
-function resolveRawInput(
+const resolveRawInput = (
   payload: Request | FormData | URLSearchParams | Schema.Json,
-): Effect.Effect<unknown, InvalidBodyError> {
-  if (payload instanceof FormData || payload instanceof URLSearchParams) {
-    return tryFormDataToObject(payload);
-  }
-
-  if (payload instanceof Request) {
-    const isBodylessMethod = payload.method === "GET" || payload.method === "HEAD";
-    if (isBodylessMethod) {
-      return Effect.try({
-        try: () => new URL(payload.url).searchParams,
-        catch: (cause) => new InvalidBodyError({ cause }),
-      }).pipe(Effect.flatMap(tryFormDataToObject));
-    }
-    return isJsonContentType(payload)
-      ? parseJsonBody(payload)
-      : parseFormData(payload).pipe(Effect.flatMap(tryFormDataToObject));
-  }
-
-  return Effect.succeed(payload);
-}
+): Effect.Effect<unknown, InvalidBodyError> =>
+  resolveEntries(payload).pipe(
+    Effect.flatMap((entries) =>
+      entries instanceof FormData || entries instanceof URLSearchParams
+        ? tryFormDataToObject(entries)
+        : Effect.succeed(entries),
+    ),
+  );
 
 /**
  * Parses and validates a submission using an Effect schema.

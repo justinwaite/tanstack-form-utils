@@ -62,6 +62,16 @@ describe("parseSubmission with empty arrays", () => {
       "Malformed form submission",
     );
   });
+
+  it("throws a clear error for a colliding FormData key path regardless of entry order", () => {
+    const fd = new FormData();
+    fd.append("name.first", "Jo");
+    fd.append("name", "Invoice #1");
+
+    expect(() => parseSubmission(fd, { schema: invoiceSchema })).toThrow(
+      "Malformed form submission",
+    );
+  });
 });
 
 describe("parseSubmission with a query string", () => {

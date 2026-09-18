@@ -35,10 +35,26 @@ export function parsePath(path: string): Array<string | number> {
     });
 }
 
+/** True for a value that can hold nested keys (a plain object or an array). */
+function isContainer(value: unknown): value is Record<string | number, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** Builds the error thrown when a submission uses the same path as both a leaf value and a container. */
+function conflictingPathError(path: string): Error {
+  return new Error(
+    `Conflicting form field paths: "${path}" is used as both a value and a container`,
+  );
+}
+
 /**
  * Sets a value on a nested object/array structure using a parsed path.
  * Creates intermediate objects or arrays as needed based on whether the
  * next segment is a number (array) or string (object).
+ *
+ * Throws if a segment is already a leaf value (e.g. `"name"` was submitted as
+ * a flat key before `"name.first"`) or already a container where a leaf value
+ * is being set (the reverse order) — the same conflict either way.
  */
 function setNested(
   root: Record<string, unknown>,
@@ -53,12 +69,18 @@ function setNested(
 
     if (container[seg] == null) {
       container[seg] = typeof next === "number" ? [] : {};
+    } else if (!isContainer(container[seg])) {
+      throw conflictingPathError(segments.slice(0, i + 1).join("."));
     }
     current = container[seg];
   }
 
   const last = segments[segments.length - 1];
-  (current as Record<string | number, unknown>)[last] = value;
+  const target = current as Record<string | number, unknown>;
+  if (isContainer(target[last])) {
+    throw conflictingPathError(segments.join("."));
+  }
+  target[last] = value;
 }
 
 /**
@@ -70,6 +92,8 @@ function setNested(
  * - Empty File entries (no name, zero size) are normalized to `null`.
  * - Non-empty File/Blob entries are preserved as-is.
  * - Duplicate flat keys (same full path) are collected into arrays.
+ * - Throws if the same base path is submitted as both a leaf value and a
+ *   container (e.g. both `"name"` and `"name.first"`), regardless of order.
  */
 export function formDataToObject(source: FormData | URLSearchParams): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -92,6 +116,9 @@ export function formDataToObject(source: FormData | URLSearchParams): Record<str
       const flatKey = segments[0] as string;
       const count = seen.get(key) ?? 0;
       if (count === 0) {
+        if (isContainer(result[flatKey])) {
+          throw conflictingPathError(key);
+        }
         result[flatKey] = value;
       } else if (count === 1) {
         result[flatKey] = [result[flatKey], value];
