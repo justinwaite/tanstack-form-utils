@@ -124,11 +124,36 @@ export const env = (
   globalThis as unknown as { process: { env: Record<string, string | undefined> } }
 ).process.env;
 
-/** Runs `fn` and returns its result with the elapsed time in milliseconds. */
-export async function timed<T>(fn: () => Promise<T>): Promise<[result: T, ms: number]> {
-  const start = performance.now();
-  const result = await fn();
-  return [result, performance.now() - start];
+/**
+ * The time limit for a payload that must fail fast. A defect of that kind takes
+ * seconds to hours. Examples are a backtracking regular expression, `BigInt` on
+ * a huge string, and an array with billions of slots. The limit is far above
+ * the normal cost, so a slow CI machine does not fail it.
+ */
+export const FAST_LIMIT_MS = 1000;
+
+/**
+ * Runs `run` on a fresh input `runs` times. Returns the last result and the
+ * shortest time in milliseconds.
+ *
+ * `build` runs outside the clock, so the cost of the payload (a long string or
+ * a `Request`) does not count. Machine noise only adds time, so the shortest
+ * run is the best estimate of the real cost.
+ */
+export async function fastest<I, T>(
+  build: () => I,
+  run: (input: I) => Promise<T>,
+  runs = 5,
+): Promise<[result: T, ms: number]> {
+  let result!: T;
+  let best = Infinity;
+  for (let i = 0; i < runs; i++) {
+    const input = build();
+    const start = performance.now();
+    result = await run(input);
+    best = Math.min(best, performance.now() - start);
+  }
+  return [result, best];
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────

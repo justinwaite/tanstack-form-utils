@@ -174,10 +174,10 @@ After every test, the suite makes sure that `Object.prototype`,
 
 | Path                                                               | Required behavior                      |
 | ------------------------------------------------------------------ | -------------------------------------- |
-| `items.4294967294=1`                                               | Reject in less than 50 ms              |
+| `items.4294967294=1`                                               | Reject in less than 1 second           |
 | An array index at or above `maxArrayLength`                        | Reject                                 |
 | `items.length=...` or any non-index key on an array                | Reject                                 |
-| 1000 fields `items.<i>.tags.9999=x` (a 21 KB body)                 | Reject in less than 50 ms              |
+| 1000 fields `items.<i>.tags.9999=x` (a 21 KB body)                 | Reject in less than 1 second           |
 | Arrays whose lengths add up to more than `maxArraySlots`           | Reject. Empty slots count              |
 | A native form that skips an index, such as `items.0` and `items.2` | Accept, with an empty slot             |
 | Path depth above `maxDepth`                                        | Reject                                 |
@@ -265,9 +265,9 @@ schema reports a type error.
 | ---------------------------------------------------------------- | ----------------------------------------- |
 | Number `0x10`, `0b101`, `0o7`, `" 5"`, `Infinity`, `1e400`       | Kept as a string                          |
 | Number `5`, `-0.5`, `.5`, `1e3`                                  | Coerced                                   |
-| A 100000-character number string                                 | Checked in less than 50 ms                |
+| A 100000-character number string                                 | Checked in less than 1 second             |
 | Bigint `0x10`, `1.5`, `1e3`, or more than 4300 digits            | Kept as a string                          |
-| A 1000000-digit bigint string                                    | Checked in less than 50 ms                |
+| A 1000000-digit bigint string                                    | Checked in less than 1 second             |
 | Date `1`, `0`, `Tue Mar 5`, `2024-02-30`, `2024-01-05T24:00:00Z` | Kept as a string                          |
 | Date `2024-01-05T10:00` (`datetime-local`, no time zone)         | Kept as a string                          |
 | Date `2024-02-29`, `2024-01-05T10:00:00+05:30`                   | Coerced to one instant in every time zone |

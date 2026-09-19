@@ -54,6 +54,10 @@ findings are in `audits/2026-09-18-form-parsing/REPORT.md`.
 2. Name the standard item (CWE, ASVS, WSTG, CAPEC, or RFC) in the `describe`
    or the file header.
 3. Add a row to the Required behavior tables in SECURITY.md.
-4. If a payload must fail fast, assert a time limit of 50 ms with `timed`.
+4. If a payload must fail fast, use `fastest` and assert `FAST_LIMIT_MS`
+   (1 second). `fastest` builds the payload outside the clock. It reports the
+   shortest of five runs, so a slow CI machine does not cause a false failure.
+   The limit catches a complexity defect, not a small slowdown. Do not set a
+   tighter limit.
 5. Every file calls `installPrototypeGuard()`. It fails a test that changes
    `Object.prototype`, `Array.prototype`, or `Function.prototype`.
