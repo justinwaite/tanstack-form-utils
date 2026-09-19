@@ -18,6 +18,16 @@ export default defineConfig({
         },
       },
       {
+        // Black-box security suite: every attack goes through the public entry
+        // points the way an application's `action` calls them. See
+        // test/security/README.md and SECURITY.md.
+        test: {
+          name: "security",
+          include: ["test/security/**/*.test.ts"],
+          environment: "node",
+        },
+      },
+      {
         // Real-browser tests of the React + React Router behavior, run through
         // Playwright-driven Chromium. `*.spec.tsx` keeps them distinct from the
         // Node unit tests above.
@@ -61,10 +71,14 @@ export default defineConfig({
     exports: true,
   },
   lint: {
+    // External test data, kept byte for byte (see test/security/corpus/README.md).
+    ignorePatterns: ["test/security/corpus/**"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
-  fmt: {},
+  fmt: {
+    ignorePatterns: ["test/security/corpus/**"],
+  },
 });

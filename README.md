@@ -1,29 +1,28 @@
 # @justinwaite/tanstack-form-utils
 
-Opinionated helpers for using [TanStack Form](https://tanstack.com/form) with
-[React Router](https://reactrouter.com) framework mode. You bring your own field
-and form components and a single schema; the library wires up client-side
-validation, native `<Form>` submission, server-side validation with the **same
-schema**, and server→client error merging.
+This package provides helpers that connect [TanStack Form](https://tanstack.com/form) to
+[React Router](https://reactrouter.com) framework mode. You bring your own field components, your own form components, and one schema. The package then handles four tasks:
 
-Two schema flavors are shipped as separate entry points:
+- Client-side validation.
+- Native `<Form>` submission.
+- Server-side validation with the same schema.
+- Merging of server errors into the client form.
 
-- [`@justinwaite/tanstack-form-utils/zod`](#zod) — validate with a Zod schema.
-- [`@justinwaite/tanstack-form-utils/effect`](#effect) — validate with an Effect
-  `Schema`.
+The package has two entry points, one for each schema library. Use [`@justinwaite/tanstack-form-utils/zod`](#zod) to validate with a Zod schema. Use [`@justinwaite/tanstack-form-utils/effect`](#effect) to validate with an Effect `Schema`.
 
-The root entry point [`@justinwaite/tanstack-form-utils`](#root) exposes the
-shared pieces (the `<AppForm>` element, FormData helpers, and a context factory).
+The root entry point [`@justinwaite/tanstack-form-utils`](#root) exports the pieces that both entry points share. These pieces are the `<AppForm>` element, the FormData helpers, and a function that creates the form contexts.
 
 ---
 
 ## Install
 
+Run this command to install the package:
+
 ```sh
 pnpm add @justinwaite/tanstack-form-utils
 ```
 
-Peer dependencies (install what you use):
+Next, install the peer dependencies (packages that your project must provide) for the entry points that you use:
 
 ```sh
 pnpm add @tanstack/react-form react react-router
@@ -35,28 +34,15 @@ pnpm add effect   # for the /effect entry
 
 ## How it fits together
 
-Both flavors follow the same five-step shape. Only the schema type and the
-server parse helper differ.
+Both entry points follow the same five steps. Only the schema type and the server parse helper are different.
 
-1. **Create contexts** once with `createFormHookContexts()` and keep the
-   `useFieldContext` / `useFormContext` hooks for your components to read.
-2. **Build your field/form components** (an `<Input>`, `<SubmitButton>`, etc.).
-   Each reads form state via the contexts from step 1.
-3. **Create the form hook** with `createAppFormHook` (exported from both the
-   `/zod` and `/effect` entry points), passing the contexts and your component
-   maps. You get back a typed `useAppForm` (and `withForm`).
-4. **Render** a form with the `<AppForm>` element and your registered
-   components. Submitting serializes the values to `FormData` and posts them via
-   React Router (or a `fetcher`).
-5. **Validate on the server** in your `action` with `parseSubmission` (same name
-   in both entry points) using the _same schema_, and return the `reply()` as
-   `actionData`. Feed that back into `useAppForm` as `serverResult` to surface
-   field- and form-level server errors inline.
+1. Create the contexts once with `createFormHookContexts()`. Keep the `useFieldContext` and `useFormContext` hooks for your components to read.
+2. Build your field components and form components, for example an `<Input>` and a `<SubmitButton>`. Each component reads the form state through the contexts from step 1.
+3. Create the form hook with `createAppFormHook`. Both the `/zod` and `/effect` entry points export it. Pass the contexts and your component maps to it. The call returns a typed `useAppForm` and `withForm`.
+4. Render the form with the `<AppForm>` element and your registered components. When the user submits, the package serializes the values to `FormData` and posts them through React Router or a `fetcher`.
+5. Validate on the server in your `action` with `parseSubmission`. Both entry points use the same name. Use the same schema that the client uses. Return the result of `reply()` as `actionData`. Pass `actionData` back to `useAppForm` as `serverResult`. The form then shows the field errors and the form errors from the server.
 
-Because the client validates the live (typed) values while the server validates
-parsed `FormData` (all strings), the server parse helpers **coerce strings back
-to the schema's expected types** (`"2"` → `2`, `"on"` → `true`, …) so the same
-schema passes on both sides. See [Type coercion](#type-coercion).
+The client validates the live values that the user typed. The server validates parsed `FormData`. Text controls arrive as strings, and file controls arrive as `File` objects. Because of this difference, the server parse helpers coerce (convert) the strings to the types that the schema expects. They do not change a `File`. For example, `"2"` becomes `2` and `"on"` becomes `true`. The same schema then passes on both sides. See [Type coercion](#type-coercion).
 
 ---
 
@@ -64,13 +50,14 @@ schema passes on both sides. See [Type coercion](#type-coercion).
 
 ### Exports
 
-| Export                                              | Kind      | Description                                                                                        |
-| --------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------- |
-| `createAppFormHook(config)`                         | function  | Creates `{ useAppForm, withForm }` bound to your contexts + components.                            |
-| `useOnSuccess` / `useOnFailure`                     | hooks     | Run a callback once after the server reports success/failure and the navigation/fetcher goes idle. |
-| `parseSubmission(payload, { schema })`              | function  | Parse + validate `FormData` / `URLSearchParams` / an object on the server.                         |
-| `formDataToObject`, `objectToFormData`, `parsePath` | functions | FormData ⇄ nested object helpers (re-exported from the root).                                      |
-| `SubmissionResponse`                                | type      | Normalized server result shape.                                                                    |
+| Export                                              | Kind      | Description                                                                                              |
+| --------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `createAppFormHook(config)`                         | function  | Creates `{ useAppForm, withForm }` bound to your contexts and components.                                |
+| `useOnSuccess` / `useOnFailure`                     | hooks     | Run a callback once after the server reports success or failure and the navigation or fetcher goes idle. |
+| `parseSubmission(payload, { schema })`              | function  | Parses and validates `FormData`, `URLSearchParams`, or an object on the server.                          |
+| `readRequestBody(request, limits?)`                 | function  | Reads a `Request` body with a size limit. Pass the result to `parseSubmission`.                          |
+| `formDataToObject`, `objectToFormData`, `parsePath` | functions | Helpers that convert between `FormData` and a nested object. Re-exported from the root.                  |
+| `SubmissionResponse`                                | type      | The normalized shape of the server result.                                                               |
 
 ### Setup
 
@@ -94,8 +81,7 @@ export const { useAppForm, withForm } = createAppFormHook({
 });
 ```
 
-A field component reads its state from `useFieldContext` (from the same
-`createFormHookContexts()` call):
+A field component reads its state from `useFieldContext`. Import the hook from the file that calls `createFormHookContexts()`:
 
 ```tsx
 // app/forms/fields/text-field.tsx
@@ -161,8 +147,11 @@ export default function Signup({ actionData }: Route.ComponentProps) {
 
 ```ts
 // app/routes/signup.tsx (continued)
+import { parseSubmission, readRequestBody } from "@justinwaite/tanstack-form-utils/zod";
+
 export async function action({ request }: Route.ActionArgs) {
-  const submission = parseSubmission(await request.formData(), {
+  // `readRequestBody` stops at 10 MiB and rejects a JSON body with a duplicate key.
+  const submission = parseSubmission(await readRequestBody(request), {
     schema: SignupSchema,
   });
 
@@ -179,7 +168,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 ```
 
-`parseSubmission` returns a discriminated union:
+`parseSubmission` returns a discriminated union (a union whose `status` field names the variant):
 
 ```ts
 type Submission =
@@ -187,25 +176,28 @@ type Submission =
   | { status: "error"; error: z.ZodError; reply: ReplyFn };
 ```
 
-Call `reply()` (optionally with `{ formErrors, fieldErrors }`) to produce the
-`SubmissionResponse` you return as `actionData` and pass back via `serverResult`.
+Call `reply()` to produce the `SubmissionResponse`. Optionally pass `{ formErrors, fieldErrors }` to it. Return the result as `actionData`, and pass it back through `serverResult`.
+
+`readRequestBody` reads the query string of a `GET` request, parses a JSON body, and reads any other body as `FormData`. It counts the bytes while it reads, so it also stops a chunked body. If you call `request.formData()` or `request.json()` yourself, the body has no size limit, and a duplicate JSON key keeps only its last value.
+
+A malformed or unsafe submission makes `readRequestBody` or `parseSubmission` throw `FormDataParseError`. Its `reason` field names the rule. See [Limits](#limits) and [SECURITY.md](./SECURITY.md).
 
 ---
 
 ## <a id="effect"></a>`/effect`
 
-Identical ergonomics to `/zod`, but the schema is an Effect `Schema` and the
-server helper is an `Effect`.
+The `/effect` entry point works like `/zod`. The schema is an Effect `Schema`, and the server helper is an `Effect`.
 
 ### Exports
 
-| Export                                        | Kind     | Description                                                                             |
-| --------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `createAppFormHook(config)`                   | function | Creates `{ useAppForm, withForm }` bound to your contexts + components.                 |
-| `useOnSuccess` / `useOnFailure`               | hooks    | Same as the Zod flavor.                                                                 |
-| `parseSubmission(request, { schema, init? })` | function | Yields `{ value, reply }`; fails with `FormValidationError` on invalid input.           |
-| `FormValidationError`                         | class    | Tagged error carrying the `reply` (returned, not thrown, so it populates `actionData`). |
-| `SubmissionReplyFn`                           | type     | The `reply` function returned on success.                                               |
+| Export                                        | Kind     | Description                                                                                                   |
+| --------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `createAppFormHook(config)`                   | function | Creates `{ useAppForm, withForm }` bound to your contexts and components.                                     |
+| `useOnSuccess` / `useOnFailure`               | hooks    | Same as in the `/zod` entry point.                                                                            |
+| `parseSubmission(request, { schema, init? })` | function | Yields `{ value, reply }`. Fails with `FormValidationError` on invalid input.                                 |
+| `InvalidBodyError`                            | class    | Tagged error for a body that cannot be read, or a malformed or unsafe submission.                             |
+| `FormValidationError`                         | class    | Tagged error that carries the `reply`. You return it instead of throwing it, so that it becomes `actionData`. |
+| `SubmissionReplyFn`                           | type     | The `reply` function that `parseSubmission` returns on success.                                               |
 
 ### Setup
 
@@ -262,15 +254,9 @@ export default function Signup({ actionData }) {
 
 ### Server action
 
-`parseSubmission` is yieldable. Return its `reply()` on success; on a
-validation error it fails with `FormValidationError`, whose `reply` you return
-so React Router populates `actionData` without hitting the error boundary.
+`parseSubmission` is yieldable (you can use it with `yield*` inside `Effect.gen`). On success, return its `reply()`. On a validation error, it fails with `FormValidationError`. Return the `reply` of that error. React Router then fills `actionData` and does not use the error boundary.
 
-It picks the body-parse strategy from the request's `Content-Type`: a JSON
-media type (`application/json`, `*+json`) is read with `request.json()`.
-Anything else is read via `request.formData()`.
-If the request body parsing fails (invalid/malformed json or formdata), the
-Effect will raise an `InvalidBodyError`.
+`parseSubmission` reads a `Request` with `readRequestBody`. It selects the body parse method from the `Content-Type` header of the request. It parses a JSON media type (`application/json` or `*+json`) as JSON, and rejects a duplicate key. It reads any other type as `FormData`. It stops a body larger than `limits.maxBodyBytes` (10 MiB by default). If the body cannot be parsed, is too large, or breaks a rule in [SECURITY.md](./SECURITY.md), the Effect fails with an `InvalidBodyError`. The `cause` of the error is a `FormDataParseError` for a rule, or the platform error for a malformed body.
 
 ```ts
 import { Effect } from "effect";
@@ -300,60 +286,94 @@ export async function action({ request }: Route.ActionArgs) {
 
 ## <a id="root"></a>Root (`@justinwaite/tanstack-form-utils`)
 
-Shared, flavor-agnostic exports.
+The root entry point exports the pieces that do not depend on the schema library.
 
-| Export                   | Kind      | Description                                                                                                                                                                                          |
-| ------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AppForm`                | component | Wraps React Router's `<Form>` (or `fetcher.Form`), captures the submitter `intent`, and renders inside `form.AppForm`. Pass `form={...}` plus any `<Form>` props (`method`, `action`, `encType`, …). |
-| `createFormHookContexts` | function  | Re-export of TanStack's context factory (convenience).                                                                                                                                               |
-| `objectToFormData(obj)`  | function  | Serialize a nested object to `FormData` using dot/bracket paths (`items.0.name`, empty-array sentinel `key[]`).                                                                                      |
-| `formDataToObject(fd)`   | function  | Inverse — parse `FormData` / `URLSearchParams` into a nested object.                                                                                                                                 |
-| `parsePath(name)`        | function  | Parse a field path string (`items[0].name`) into segments.                                                                                                                                           |
-| `FormSubmitMeta`         | type      | Submit metadata (`event`, `target`, `method`, …) threaded through submission.                                                                                                                        |
-| `SubmissionResponse`     | type      | `{ success, errorMap, fieldErrors }` — the server result shape.                                                                                                                                      |
+| Export                     | Kind      | Description                                                                                                                                                                                                                          |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AppForm`                  | component | Wraps the `<Form>` of React Router (or `fetcher.Form`). Captures the `intent` of the submitter and renders inside `form.AppForm`. Pass `form={...}` and any `<Form>` props (`method`, `action`, `encType`, …).                       |
+| `createFormHookContexts`   | function  | Re-export of the TanStack function that creates the contexts.                                                                                                                                                                        |
+| `objectToFormData(obj)`    | function  | Serializes a nested object to `FormData` with dot and bracket paths (`items.0.name`). The marker for an empty array is `key[]`. Dates become ISO strings. Throws a `TypeError` for a key that is empty or contains `.`, `[`, or `]`. |
+| `formDataToObject(fd)`     | function  | The inverse. Parses `FormData` or `URLSearchParams` into a nested object.                                                                                                                                                            |
+| `parsePath(name)`          | function  | Parses a field path string (`items[0].name`) into segments.                                                                                                                                                                          |
+| `readRequestBody(req)`     | function  | Reads a `Request` body with a size limit. Returns `URLSearchParams` for `GET`, parsed JSON for a JSON body, and `FormData` for any other body.                                                                                       |
+| `FormDataParseError`       | class     | Thrown for a malformed or unsafe submission. `reason` names the rule, for example `"body-size"` or `"duplicate-key"`.                                                                                                                |
+| `DEFAULT_FORM_DATA_LIMITS` | constant  | The default limits. See [Limits](#limits).                                                                                                                                                                                           |
+| `FormSubmitMeta`           | type      | Submit metadata (`event`, `target`, `method`, …) that the package passes through the submission.                                                                                                                                     |
+| `SubmissionResponse`       | type      | `{ success, errorMap, fieldErrors }`. The shape of the server result.                                                                                                                                                                |
+
+For the security policy, see [SECURITY.md](./SECURITY.md).
 
 ---
 
-## `useAppForm` options
+## `useAppForm` configuration
 
-Beyond TanStack Form's standard `FormOptions` (`defaultValues`, `validators`,
-`listeners`, …), the returned `useAppForm` accepts:
+`useAppForm` accepts the standard `FormOptions` of TanStack Form (`defaultValues`, `validators`, `listeners`, …). It also accepts these properties:
 
-| Option                 | Type                             | Default | Description                                                                                                            |
-| ---------------------- | -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `schema`               | Zod `$ZodType` / Effect `Schema` | —       | **Required.** Validates the form on `onDynamic`. The same schema is used server-side.                                  |
-| `serverResult`         | `SubmissionResponse`             | —       | The latest `actionData`. Field/form server errors are merged into form state; editing a field clears its server error. |
-| `fetcher`              | `FetcherWithComponents`          | —       | Submit via a fetcher instead of a navigation (`<AppForm>` uses `fetcher.Form`).                                        |
-| `focusOnError`         | `boolean`                        | `true`  | Focus the first `[aria-invalid="true"]` field on a failed submit.                                                      |
-| `onServerSuccess`      | `() => void`                     | —       | Fires once after the server reports success and the request settles.                                                   |
-| `onServerFailure`      | `() => void`                     | —       | Fires once after the server reports failure and the request settles.                                                   |
-| `shouldRevalidatePage` | `boolean`                        | `true`  | Whether React Router revalidates loaders after a successful submit.                                                    |
-| `id`                   | `string`                         | —       | Form id, applied to the rendered `<form>`.                                                                             |
+| Property               | Type                             | Default | Description                                                                                                                                                                            |
+| ---------------------- | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`               | Zod `$ZodType` / Effect `Schema` | None    | Required. Validates the form on `onDynamic`. The server uses the same schema.                                                                                                          |
+| `serverResult`         | `SubmissionResponse`             | None    | The latest `actionData`. The form merges the field errors and form errors from the server into its state. When the user edits a field, the form clears the server error of that field. |
+| `fetcher`              | `FetcherWithComponents`          | None    | Submits through a fetcher instead of a navigation. `<AppForm>` then uses `fetcher.Form`.                                                                                               |
+| `focusOnError`         | `boolean`                        | `true`  | If a submit fails, focuses the first `[aria-invalid="true"]` field.                                                                                                                    |
+| `onServerSuccess`      | `() => void`                     | None    | Runs once after the server reports success and the request finishes.                                                                                                                   |
+| `onServerFailure`      | `() => void`                     | None    | Runs once after the server reports failure and the request finishes.                                                                                                                   |
+| `shouldRevalidatePage` | `boolean`                        | `true`  | Controls whether React Router revalidates the loaders after a successful submit.                                                                                                       |
+| `id`                   | `string`                         | None    | The form id. The package applies it to the rendered `<form>`.                                                                                                                          |
 
-The hook returns the standard app-form API (with your registered
-`form.AppField` / `form.AppForm` components), plus `fetcher` and `id` when
-provided.
+The hook returns the standard app-form API, with your registered `form.AppField` and `form.AppForm` components. If you provide `fetcher` and `id`, the hook also returns them.
 
 ---
 
 ## Type coercion
 
-`FormData` is all strings, so a `number`/`boolean`/`bigint` field arrives on the
-server as `"2"` / `"on"` / `"9"`. To keep the **same schema** valid on both
-client and server, `parseSubmission` and `parseSubmission` introspect your
-schema and coerce string leaves to the expected types before validating — with
-no changes to your schema and no type metadata on the wire (so plain,
-no-JavaScript form posts work too).
+Text values in `FormData` are strings. A `number`, `boolean`, or `bigint` field therefore arrives on the server as `"2"`, `"on"`, or `"9"`. The same schema must be valid on both the client and the server. To achieve this, the `parseSubmission` helper in both entry points reads your schema. It coerces the string values to the expected types before it validates them. You do not change your schema, and no type metadata travels with the request. Plain form posts without JavaScript therefore also work.
 
-Coerced today: `number`, `boolean` (`"on"`/`"true"` → `true`, `"false"` →
-`false`), `bigint`, and empty strings → `undefined` (so `.optional()` fields
-pass). A value that can't convert is left as the original string so the
-validator still reports a proper "expected …" error.
+The package coerces only strict forms. Another part of your application that reads the raw string then sees the same value as the schema.
 
-**Effect dates:** use `Schema.DateFromString` for date fields — it decodes a
-string natively (and is left untouched by coercion). `Schema.Date` expects a
-real `Date` instance and cannot be coerced from a form string. (Zod's
-`z.date()` _is_ coerced.)
+| Type      | Coerced strings                                                                         | Kept as a string                                                      |
+| --------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `number`  | Decimal numbers: `5`, `-0.5`, `.5`, `1e3`                                               | `0x10`, `0b101`, `" 5"`, `Infinity`, and `1e400`, which is not finite |
+| `boolean` | `"on"` and `"true"` become `true`. `"false"` becomes `false`                            | Any other string                                                      |
+| `bigint`  | Decimal integers of 4300 digits or fewer: `123`, `-5`                                   | `0x10`, `1.5`, `1e3`, and longer strings                              |
+| `Date`    | `YYYY-MM-DD` (midnight UTC), and RFC 3339 with a time zone: `2024-01-05T10:00:00+05:30` | `datetime-local` values with no time zone, `2024-02-30`, and `1`      |
 
-Not yet coerced (passed through untouched): genuine multi-member unions, mixed
-tuples, records, literals, and recursive schemas.
+An empty string becomes `undefined`, so `.optional()` fields pass.
+
+If a value is not in a strict form, the package keeps the original string. The validator then reports a normal "expected …" error.
+
+An `<input type="datetime-local">` sends a local time with no time zone. The server cannot know the time zone of the user, so the package does not coerce it. Use a string schema, and convert the value with the time zone that you know.
+
+For Effect date fields, use `Schema.DateFromString`. It decodes a string natively, and coercion leaves it unchanged. `Schema.Date` expects a real `Date` instance, so the package cannot coerce it from a form string. The package does coerce `z.date()` in Zod.
+
+The package does not coerce these schema types yet. It passes them through unchanged:
+
+- Genuine multi-member unions.
+- Mixed tuples.
+- Records.
+- Literals.
+- Recursive schemas.
+
+---
+
+## Limits
+
+The server functions limit how much they read and build from a request. A submission that breaks a limit fails with `FormDataParseError` (Zod) or `InvalidBodyError` (Effect). A real form stays far below the defaults.
+
+| Limit            | Default | Scope                                                                      |
+| ---------------- | ------- | -------------------------------------------------------------------------- |
+| `maxBodyBytes`   | 10 MiB  | The request body. `readRequestBody` and the Effect `parseSubmission` only. |
+| `maxFields`      | 10000   | Form entries, or JSON object keys plus array items.                        |
+| `maxDepth`       | 32      | Segments in a field path, or JSON nesting.                                 |
+| `maxArrayLength` | 10000   | The length of one array. A form array index must be below it.              |
+| `maxArraySlots`  | 100000  | The total length of all arrays in one submission, empty slots included.    |
+| `maxFiles`       | 100     | Files in one submission. An empty file input does not count.               |
+| `maxFileBytes`   | 10 MiB  | The size of one file.                                                      |
+
+To change a limit, pass the `limits` option to `readRequestBody`, `parseSubmission`, or `formDataToObject`:
+
+```ts
+const limits = { maxBodyBytes: 50 * 1024 * 1024, maxFileBytes: 50 * 1024 * 1024 };
+const submission = parseSubmission(await readRequestBody(request, limits), { schema, limits });
+```
+
+Each limit must be a non-negative integer. Another value throws a `TypeError`.

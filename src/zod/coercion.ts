@@ -44,6 +44,9 @@ function walk(schema: $ZodType, value: unknown, seen: Set<$ZodType>): unknown {
     case "object": {
       if (!isRecord(value)) return value;
       for (const key of Object.keys(def.shape)) {
+        // Only coerce keys the payload actually has; never read an inherited
+        // property (e.g. `toString`) and write it back as an own value.
+        if (!Object.hasOwn(value, key)) continue;
         value[key] = walk(def.shape[key], value[key], seen);
       }
       return value;
