@@ -1,13 +1,12 @@
 # Audit Report: Form Payload Parsing
 
-| Item        | Value                                                                           |
-| ----------- | ------------------------------------------------------------------------------- |
-| Date        | 2026-09-18                                                                      |
-| Version     | `@justinwaite/tanstack-form-utils` 0.4.3                                        |
-| Base commit | `dc6d5d8` (release 0.4.3)                                                       |
-| Branch      | `fix-prototype-pollution`                                                       |
-| Runtime     | Node.js v24.21.0                                                                |
-| Standards   | The standards and the required behavior are in [SECURITY.md](../../SECURITY.md) |
+| Item      | Value                                                                           |
+| --------- | ------------------------------------------------------------------------------- |
+| Date      | 2026-09-18                                                                      |
+| Audited   | `@justinwaite/tanstack-form-utils` 0.4.3                                        |
+| Fixed in  | `@justinwaite/tanstack-form-utils` 0.5.0                                        |
+| Runtime   | Node.js v24.21.0                                                                |
+| Standards | The standards and the required behavior are in [SECURITY.md](../../SECURITY.md) |
 
 The audit found 23 issues, and one remediation fixes or documents all of them.
 F-1 to F-11 are prototype pollution, array allocation, and parameter pollution
@@ -33,10 +32,10 @@ a multipart parser dependency.
 
 ## Method
 
-1. A proof-of-concept script sent attack payloads to the base commit.
+1. A proof-of-concept script sent attack payloads to release 0.4.3.
 2. A security test suite encoded the required behavior from SECURITY.md.
-3. The suite ran against the base commit, before any code change.
-4. The code changes went in, and the same suite ran again.
+3. The suite ran against release 0.4.3.
+4. The same suite ran against release 0.5.0.
 
 The payload shapes come from published advisories for `qs`, `lodash`,
 `dot-prop`, `set-value`, `object-path`, and `dset`. SECURITY.md lists the
@@ -85,51 +84,28 @@ All security tests are in `test/security/`, a separate Vitest project:
 
 ## Test results
 
-| Suite     | Code under test                          | Passed | Failed | Skipped | Evidence                                                               |
-| --------- | ---------------------------------------- | ------ | ------ | ------- | ---------------------------------------------------------------------- |
-| Initial   | Base commit `dc6d5d8` (release 0.4.3)    | 34     | 88     | 4       | [evidence/initial-suite-before.txt](evidence/initial-suite-before.txt) |
-| Initial   | `dc6d5d8` with the fixes for F-1 to F-11 | 126    | 0      | 0       | [evidence/initial-suite-after.txt](evidence/initial-suite-after.txt)   |
-| Black-box | Commit `c452969`                         | 671    | 186    | 5       | [evidence/before.txt](evidence/before.txt)                             |
-| Black-box | Fixed working tree                       | 862    | 0      | 0       | [evidence/after.txt](evidence/after.txt)                               |
+| Release | Passed | Failed | Skipped | Evidence                                   |
+| ------- | ------ | ------ | ------- | ------------------------------------------ |
+| 0.4.3   | 506    | 348    | 8       | [evidence/before.txt](evidence/before.txt) |
+| 0.5.0   | 862    | 0      | 0       | [evidence/after.txt](evidence/after.txt)   |
 
-The audit wrote the tests for F-1 to F-11 first, in `src/security.test.ts`,
-`src/zod/security.test.ts`, `src/effect/security.test.ts`, and
-`src/core.test.ts`. The initial rows count these files. The fixes for F-1 to
-F-11 then went into commit `c452969`. After that, the tests moved to the
-black-box suite in `test/security/`, and the audit added the tests for F-12 to
-F-23. The black-box suite contains every initial test, rewritten to go through
-the public entry points for both the Zod and the Effect paths.
+Four tests were skipped for both the Zod and the Effect paths, 8 in total. On
+0.4.3, each one stops the test worker with
+`FATAL ERROR: invalid table size Allocation failed - JavaScript heap out of memory`.
+The skipped tests are:
 
-The black-box base run used commit `c452969`, so its failures show F-12 to
-F-23 only. The evidence for F-1 to F-11 comes from the initial suite, and the
-test names in those sections refer to the initial files.
+1. "rejects a 4-billion index" (F-2)
+2. "rejects `length` on an array" (F-3)
+3. "rejects 1000 sparse arrays" (F-12)
+4. "ignores a polluted `Object.prototype.limits`" (F-13)
 
-The initial base run needed two shims, so that it can finish:
+Some 0.4.3 failures come from the new API. For example, 0.4.3 has no `limits`
+option, so the tests for a bad limit value fail. The
+per-finding sections below name the tests that show the vulnerable behavior
+itself.
 
-1. `mergeServerErrors` in `src/core.ts` got an `export`, so that the test can import it.
-2. Four tests were skipped. On the base code, each one crashed its test worker
-   with `FATAL ERROR: invalid table size Allocation failed - JavaScript heap out of memory`.
-
-Some base failures come from the new API. For example, `FormDataParseError`
-and the `limits` option do not exist on the base commit. The per-finding
-sections below name the tests that show the vulnerable behavior itself.
-
-The black-box base run needed two shims, so that it can finish:
-
-1. `src/request-body.ts` had a `readRequestBody` stub with the old read behavior
-   of the Effect `parseSubmission`: `request.formData()` or `request.json()`,
-   with no limits.
-2. Five tests were skipped. On the base code, each one hangs or stops the
-   worker. The Zod "rejects 1000 sparse arrays" test runs out of memory after
-   about 35 seconds (F-12). The two "ignores a polluted
-   `Object.prototype.limits`" tests send a 4294967295-slot array to the schema
-   walk (F-13). The two "stops a chunked body at the default `maxBodyBytes`"
-   tests read a stream that never ends, because the default does not exist
-   (F-19).
-
-After all fixes, `vp check` reported no format, lint, or type errors. All
-three Vitest projects passed: security 862 of 862, unit 88 of 88, and browser
-11 of 11. The unit project holds no security tests.
+On 0.5.0, `vp check` reported no format, lint, or type errors. All three
+Vitest projects passed: security 862 of 862, unit 88 of 88, and browser 11 of 11. The unit project holds no security tests.
 
 ## Findings
 
@@ -160,11 +136,9 @@ Remediation.
    `parseSubmission` throws it. The Effect `parseSubmission` fails with
    `InvalidBodyError`.
 
-Test evidence. `src/security.test.ts`, describe "prototype pollution: dangerous
-path segments are rejected": 32 failed before, 40 passed after. The
-`installPrototypeGuard` hook in `test/prototype-guard.ts` reported
-`a built-in prototype was polluted` on the base code. The Zod and Effect suites
-have the same tests through `parseSubmission`, with 7 failed before.
+Test evidence. `test/security/prototype-pollution.test.ts`, describe
+"dangerous FormData keys are rejected (F-1)": 72 failed before, 72 passed
+after.
 
 ### F-2: Memory exhaustion through a large array index
 
@@ -178,10 +152,10 @@ Remediation. `assertWritable` in `src/server-validation.ts` rejects an array
 index at or above `maxArrayLength` (default 10000), with
 `reason: "array-index"`.
 
-Test evidence. On the base code, the Zod and Effect tests "huge sparse index"
-crashed the test worker. After the fix, they pass and finish in less than 50 ms.
-`src/security.test.ts`, describe "resource exhaustion: array indices": 8 failed
-before, 8 passed after.
+Test evidence. On 0.4.3, the test "rejects a 4-billion index in less than
+50 ms" stopped the test worker, so the run skipped it. On 0.5.0, it passes for
+both paths. `test/security/resource-limits.test.ts`, describe "array indices
+(F-2, F-3)": 10 failed and 4 skipped before, 16 passed after.
 
 ### F-3: Memory exhaustion through an array length key
 
@@ -191,10 +165,9 @@ directly, with the same crash as F-2.
 Remediation. `assertWritable` accepts only numeric indices on an array. Any
 named key, `length` included, fails with `reason: "conflicting-path"`.
 
-Test evidence. The Zod and Effect tests "array length override" crashed the
-test worker on the base code. After the fix, they pass. `src/security.test.ts`
-tests "rejects `length` on an array" and "rejects any non-index key on an
-existing array" pass.
+Test evidence. On 0.4.3, the test "rejects `length` on an array" stopped the
+test worker, so the run skipped it. The test "rejects any non-index key on an
+existing array" failed. On 0.5.0, both pass for both paths.
 
 ### F-4: Inherited property names break field parsing
 
@@ -208,15 +181,15 @@ Remediation. `ownValue` in `src/server-validation.ts` uses `Object.hasOwn`.
 The Zod and Effect coercion walkers also skip keys that the payload does not
 own. Thus they do not copy an inherited function into the payload.
 
-Test evidence. `src/security.test.ts`, describe "path parsing: inherited
-property names are ordinary fields": 6 failed before, 8 passed after.
+Test evidence. `test/security/path-parsing.test.ts`, describe "inherited
+property names are ordinary fields (F-4)": 12 failed before, 16 passed after.
 
 ### F-5: Prototype pollution in the browser through server field errors
 
 Failure. `mergeServerErrors` read `fieldMetaBase[field]` for each key in
 `serverResult.fieldErrors`. For the key `__proto__`, this returned
 `Object.prototype`, and the function wrote `errorMap` and `isTouched` into it.
-The base test run reported:
+The 0.4.3 test run reported:
 
 ```
 AssertionError: a built-in prototype was polluted: expected [ 'errorMap', 'isTouched' ] to deeply equal []
@@ -227,7 +200,8 @@ Remediation. `mergeServerErrors` in `src/core.ts` skips `__proto__`,
 metadata. The Effect `schemaFailureToResponse` now builds `fieldErrors` with
 `Object.fromEntries`, which defines own properties.
 
-Test evidence. `src/core.test.ts`: 3 failed before, 5 passed after.
+Test evidence. `test/security/client-merge.test.ts`: 3 failed before, 5
+passed after.
 
 ### F-6: No limit on depth or field count
 
@@ -237,8 +211,8 @@ Remediation. `formDataToObject` rejects more than `maxFields` entries (default 1
 `maxDepth` segments (default 32) with `reason: "depth"`. Callers can change both
 limits with the `limits` option.
 
-Test evidence. `src/security.test.ts`, describes "resource exhaustion: depth"
-and "resource exhaustion: field count": 8 failed before, 8 passed after.
+Test evidence. `test/security/resource-limits.test.ts`, describes "path depth
+(F-6)" and "field count (F-6)": 12 failed before, 16 passed after.
 
 ### F-7: Negative numbers become array indices
 
@@ -248,8 +222,10 @@ with a `-1` property.
 Remediation. `parsePath` accepts only canonical non-negative integers
 (`/^(?:0|[1-9]\d*)$/`) as indices.
 
-Test evidence. `src/security.test.ts`, describe "path parsing: only canonical
-non-negative integers are indices": 2 failed before, 10 passed after.
+Test evidence. `test/security/path-parsing.test.ts`, describe "only canonical
+non-negative integers are indices (F-7)": 2 failed before, 2 passed after. The
+`parsePath` unit test "keeps "-1" as a string segment (F-7)" failed before and
+passes after.
 
 ### F-8: Empty field names
 
@@ -259,8 +235,8 @@ wrote to a key named `undefined`.
 Remediation. `assertSafePath` rejects an empty path with
 `reason: "empty-path"`.
 
-Test evidence. `src/security.test.ts`, describe "path parsing: empty paths are
-rejected": 8 failed before, 8 passed after.
+Test evidence. `test/security/path-parsing.test.ts`, describe "empty paths are
+rejected (F-8)": 14 failed before, 14 passed after.
 
 ### F-9: JSON payloads skip the key rules
 
@@ -273,8 +249,9 @@ key rules and the `maxDepth` limit to parsed payloads. It walks the payload
 without recursion, so deep input cannot overflow the stack. Both
 `parseSubmission` functions call it for payloads that are not FormData.
 
-Test evidence. The Zod and Effect describes "JSON payloads get the same key
-rules": 8 failed before, 11 passed after.
+Test evidence. `test/security/prototype-pollution.test.ts`, describe "JSON
+payloads get the same key rules (ASVS V1.5.3, F-9)": 18 failed before, 22
+passed after.
 
 ### F-10: Error messages repeat the full key
 
@@ -283,8 +260,8 @@ Failure. A 5000-character key appeared in full in the error message.
 Remediation. `describeKey` shortens a key to 100 characters. No message
 contains a submitted value.
 
-Test evidence. `src/security.test.ts`, describe "error messages": 2 failed
-before, 3 passed after.
+Test evidence. `test/security/path-parsing.test.ts`, describe "error messages
+(F-10, CWE-117)": 5 failed before, 6 passed after.
 
 ### F-11: Two spellings of one field overwrite each other
 
@@ -296,8 +273,9 @@ Remediation. `formDataToObject` counts duplicates by the normalized path
 segment. The result is `{ role: ["user", "admin"] }`, and a string schema
 rejects it.
 
-Test evidence. `src/security.test.ts`, test "treats `role` and `[role]` as the
-same field": failed before, passed after.
+Test evidence. `test/security/parameter-pollution.test.ts`, test "treats
+`role` and `[role]` as one field with two values (F-11)": failed before for
+both paths, passes after.
 
 ### F-12: Memory exhaustion through many sparse arrays
 
@@ -327,8 +305,9 @@ Remediation.
    (maintainer decision 1).
 
 Test evidence. `test/security/resource-limits.test.ts`, describe "total array
-slots across fields (F-12)": 7 failed and 1 skipped before, 10 passed after.
-The 100-field and 1000-field bodies are rejected in 3 ms or less.
+slots across fields (F-12)": 6 failed and 2 skipped before, 10 passed after.
+On 0.4.3, the 1000-field test stopped the test worker, so the run skipped it.
+On 0.5.0, the 100-field and 1000-field bodies are rejected in 3 ms or less.
 
 ### F-13: Option gadget through a polluted prototype
 
@@ -348,8 +327,9 @@ Remediation.
    limit that is not a non-negative safe integer. The Effect `parseSubmission`
    then dies, because a bad limit is a programming error and not bad input.
 
-Test evidence. `test/security/option-gadgets.test.ts`: 19 failed and 2 skipped
-before, 27 passed after.
+Test evidence. `test/security/option-gadgets.test.ts`: 25 failed and 2 skipped
+before, 27 passed after. On 0.4.3, the test "ignores a polluted
+`Object.prototype.limits`" stopped the test worker, so the run skipped it.
 
 ### F-14: JSON duplicate keys
 
@@ -394,7 +374,8 @@ This changes the result for a form that sends a nested key twice. The functional
 test "overwrites duplicate nested keys (last write wins)" now expects an array.
 
 Test evidence. `test/security/parameter-pollution.test.ts`, describe "FormData
-duplicate keys": 6 failed before, 12 passed after.
+duplicate keys": 10 failed before, 12 passed after. Two of the failures are
+the F-11 test.
 
 ### F-16: JSON payloads skip the count limits
 
@@ -407,7 +388,7 @@ Remediation. `assertSafePayload` now applies `maxFields`, `maxArrayLength`, and
 the length of an array before it reads the items.
 
 Test evidence. `test/security/resource-limits.test.ts`, describe "JSON payloads
-get the same limits (F-16)": 14 failed before, 16 passed after. A pre-parsed
+get the same limits (F-16)": 16 failed before, 16 passed after. A pre-parsed
 array of 1000000 items is rejected in less than 50 ms.
 
 ### F-17: Loose number and bigint coercion
@@ -465,7 +446,7 @@ Remediation.
    milliseconds.
 
 Test evidence. `test/security/coercion.test.ts`, describe "dates (F-18)": 14
-failed before, 26 passed after. The round-trip test in
+failed before, 26 passed after. The two round-trip tests in
 `test/security/serialization.test.ts` failed before, because the milliseconds
 were lost.
 
@@ -494,7 +475,7 @@ is known. The 50000-file test takes about 1.5 s and then rejects. The body
 limit bounds this cost (maintainer decision 4).
 
 Test evidence. `test/security/resource-limits.test.ts`, describes "body size
-(F-19)" and "files (F-19)": 16 failed and 2 skipped before, 24 passed after.
+(F-19)" and "files (F-19)": 18 failed before, 24 passed after.
 
 ### F-20: Path delimiters in `objectToFormData` keys
 
