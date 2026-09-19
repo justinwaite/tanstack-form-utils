@@ -11,7 +11,7 @@ Three Vitest projects, configured in `vite.config.ts` under `test.projects`:
 ## Running
 
 ```bash
-vp test run               # both projects
+vp test run               # the unit, security, and browser projects
 vp test run --project unit
 vp test run --project security   # or: vp run test:security
 vp test run --project browser

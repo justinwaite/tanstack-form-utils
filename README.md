@@ -42,7 +42,7 @@ Both entry points follow the same five steps. Only the schema type and the serve
 4. Render the form with the `<AppForm>` element and your registered components. When the user submits, the package serializes the values to `FormData` and posts them through React Router or a `fetcher`.
 5. Validate on the server in your `action` with `parseSubmission`. Both entry points use the same name. Use the same schema that the client uses. Return the result of `reply()` as `actionData`. Pass `actionData` back to `useAppForm` as `serverResult`. The form then shows the field errors and the form errors from the server.
 
-The client validates the live values that the user typed. The server validates parsed `FormData`, and all `FormData` values are strings. Because of this difference, the server parse helpers coerce (convert) the strings to the types that the schema expects. For example, `"2"` becomes `2` and `"on"` becomes `true`. The same schema then passes on both sides. See [Type coercion](#type-coercion).
+The client validates the live values that the user typed. The server validates parsed `FormData`. Text controls arrive as strings, and file controls arrive as `File` objects. Because of this difference, the server parse helpers coerce (convert) the strings to the types that the schema expects. They do not change a `File`. For example, `"2"` becomes `2` and `"on"` becomes `true`. The same schema then passes on both sides. See [Type coercion](#type-coercion).
 
 ---
 
@@ -326,7 +326,7 @@ The hook returns the standard app-form API, with your registered `form.AppField`
 
 ## Type coercion
 
-`FormData` contains only strings. A `number`, `boolean`, or `bigint` field therefore arrives on the server as `"2"`, `"on"`, or `"9"`. The same schema must be valid on both the client and the server. To achieve this, the `parseSubmission` helper in both entry points reads your schema. It coerces the string values to the expected types before it validates them. You do not change your schema, and no type metadata travels with the request. Plain form posts without JavaScript therefore also work.
+Text values in `FormData` are strings. A `number`, `boolean`, or `bigint` field therefore arrives on the server as `"2"`, `"on"`, or `"9"`. The same schema must be valid on both the client and the server. To achieve this, the `parseSubmission` helper in both entry points reads your schema. It coerces the string values to the expected types before it validates them. You do not change your schema, and no type metadata travels with the request. Plain form posts without JavaScript therefore also work.
 
 The package coerces only strict forms. Another part of your application that reads the raw string then sees the same value as the schema.
 

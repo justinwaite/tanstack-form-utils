@@ -65,6 +65,17 @@ function isInteroperable(value: unknown): boolean {
   return true;
 }
 
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+
+function isValidUtf8(bytes: Uint8Array): boolean {
+  try {
+    strictUtf8.decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function expectAcceptedOrParserRejection(outcome: Outcome): void {
   if (outcome.tag === "rejected") {
     // Any parser reason is fine. The row must not reach the schema as a crash.
@@ -108,6 +119,8 @@ describe.each(consumers)("$name consumer: JSONTestSuite", (consumer) => {
     async (name) => {
       const bytes = readFileSync(new URL(name, jsonSuiteDir));
       const outcome = await consumer.submit(json(bytes), schemas.any);
+      // Invalid UTF-8 must be rejected, not decoded to U+FFFD and passed on.
+      if (!isValidUtf8(bytes)) expect(reasonOf(outcome)).toBe("malformed-string");
       expectAcceptedOrParserRejection(outcome);
       if (outcome.tag === "accepted") expect(isInteroperable(outcome.value)).toBe(true);
     },

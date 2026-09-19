@@ -376,13 +376,14 @@ export function assertSafePayload(value: unknown, limits?: Partial<FormDataLimit
 
   while (stack.length > 0) {
     const [node, depth] = stack.pop()!;
+    // Checked before the leaf filter, so a primitive leaf is held to `maxDepth` like a container.
+    if (depth > maxDepth) {
+      throw new FormDataParseError("depth", `payload is nested deeper than ${maxDepth} levels`);
+    }
     assertInteroperableLeaf(node);
     if (!isPlainContainer(node) || visited.has(node)) continue;
     visited.add(node);
 
-    if (depth > maxDepth) {
-      throw new FormDataParseError("depth", `payload is nested deeper than ${maxDepth} levels`);
-    }
     if (Array.isArray(node)) {
       if (node.length > maxArrayLength) {
         throw new FormDataParseError(

@@ -13,6 +13,7 @@ import {
   chunked,
   consumers,
   fields,
+  get,
   json,
   multipart,
   reasonOf,
@@ -241,6 +242,12 @@ describe.each(consumers)("$name consumer", (consumer) => {
     it("rejects JSON nesting above maxDepth without a stack overflow", async () => {
       const body = '{"name":"a","x":' + "[".repeat(10_000) + "]".repeat(10_000) + "}";
       expect(reasonOf(await consumer.submit(json(body), schemas.user))).toBe("depth");
+    });
+
+    it("holds a primitive JSON leaf to maxDepth, like a form path", async () => {
+      const limits = { maxDepth: 0 };
+      expect(reasonOf(await consumer.submit(json('{"a":1}'), schemas.any, limits))).toBe("depth");
+      expect(reasonOf(await consumer.submit(get("a=1"), schemas.any, limits))).toBe("depth");
     });
 
     it("applies the limits to an already-parsed payload in less than 50 ms", async () => {

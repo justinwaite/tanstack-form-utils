@@ -13,7 +13,8 @@ import { isJsonContentType } from "./server-validation.ts";
  * - A `GET`/`HEAD` request has no body, so its URL's query string is returned
  *   as `URLSearchParams`.
  * - A JSON media type (`application/json`, `*+json`) is parsed and returned.
- *   A JSON object with a duplicate key is rejected, because `JSON.parse` keeps
+ *   A body that is not valid UTF-8 is rejected. A JSON object with a
+ *   duplicate key is rejected, because `JSON.parse` keeps
  *   only the last value and gives no signal (RFC 7493 §2.3).
  * - Any other body is returned as `FormData`.
  *
@@ -21,7 +22,8 @@ import { isJsonContentType } from "./server-validation.ts";
  * `Content-Length` also stops at `limits.maxBodyBytes`.
  *
  * Throws `FormDataParseError` with `reason: "body-size"` for a body larger
- * than `limits.maxBodyBytes`, or `"duplicate-key"` for a repeated JSON key.
+ * than `limits.maxBodyBytes`, `"duplicate-key"` for a repeated JSON key, or
+ * `"malformed-string"` for a JSON body that is not valid UTF-8.
  * Throws the platform error (`SyntaxError`, `TypeError`) for a body that is not
  * valid JSON or form data. Throws a `TypeError` if a limit is not a
  * non-negative integer.
@@ -41,11 +43,22 @@ export async function readRequestBody(
 
   const bytes = await readBytes(request, maxBodyBytes);
   if (isJsonContentType(request)) {
-    return parseJsonWithoutDuplicateKeys(new TextDecoder().decode(bytes));
+    return parseJsonWithoutDuplicateKeys(decodeUtf8(bytes));
   }
   const contentType = request.headers.get("content-type");
   const body = new Response(bytes, contentType ? { headers: { "content-type": contentType } } : {});
   return body.formData();
+}
+
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+/** Decodes a JSON body. Invalid UTF-8 is rejected, not replaced with U+FFFD (RFC 8259 §8.1). */
+function decodeUtf8(bytes: Uint8Array): string {
+  try {
+    return utf8.decode(bytes);
+  } catch {
+    throw new FormDataParseError("malformed-string", "payload is not valid UTF-8");
+  }
 }
 
 function bodySizeError(maxBodyBytes: number): FormDataParseError {
