@@ -2,13 +2,22 @@ import type { $ZodType, input, output } from "zod/v4/core";
 
 import z from "zod";
 
-import { formDataToObject, type SubmissionResponse } from "../server-validation.ts";
+import {
+  assertSafePayload,
+  formDataToObject,
+  type FormDataLimits,
+  type SubmissionResponse,
+} from "../server-validation.ts";
 import { coerceFormValue } from "./coercion.ts";
 
 export {
+  DEFAULT_FORM_DATA_LIMITS,
+  FormDataParseError,
   formDataToObject,
   objectToFormData,
   parsePath,
+  type FormDataLimits,
+  type FormDataParseErrorReason,
   type SubmissionResponse,
 } from "../server-validation.ts";
 
@@ -28,19 +37,15 @@ export function parseSubmission<Schema extends $ZodType>(
   // `FormData`/`URLSearchParams` are normalized below; any other value (e.g. an
   // already-parsed action payload) is passed straight to the schema.
   payload: unknown,
-  { schema }: { schema: Schema },
+  { schema, limits }: { schema: Schema; limits?: Partial<FormDataLimits> },
 ): Submission<Schema> {
+  // Both branches throw `FormDataParseError` for a malformed or unsafe payload
+  // (conflicting paths, `__proto__` keys, limits exceeded — see SECURITY.md).
   let normalizedPayload: unknown;
   if (payload instanceof FormData || payload instanceof URLSearchParams) {
-    try {
-      normalizedPayload = formDataToObject(payload);
-    } catch (cause) {
-      // A malformed key path (e.g. both `"name"` and `"name.first"` submitted)
-      // makes `formDataToObject` throw; surface that as a clear, catchable
-      // error instead of the raw "Cannot create property" TypeError.
-      throw new Error("Malformed form submission: conflicting field name paths", { cause });
-    }
+    normalizedPayload = formDataToObject(payload, limits);
   } else {
+    assertSafePayload(payload, limits);
     normalizedPayload = payload;
   }
   // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so

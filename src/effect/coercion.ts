@@ -44,6 +44,9 @@ function walk(ast: SchemaAST.AST, value: unknown): unknown {
       for (const ps of ast.propertySignatures) {
         // Form field names are always strings; skip symbol/number keys.
         if (typeof ps.name !== "string") continue;
+        // Only coerce keys the payload actually has; never read an inherited
+        // property (e.g. `toString`) and write it back as an own value.
+        if (!Object.hasOwn(value, ps.name)) continue;
         value[ps.name] = walk(ps.type, value[ps.name]);
       }
       return value;

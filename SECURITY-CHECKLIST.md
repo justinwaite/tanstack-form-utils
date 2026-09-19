@@ -12,7 +12,7 @@ org-level actions only a human can take.
 
 - [ ] **2FA on the npm account** (authenticator/passkey), with recovery codes
       stored offline. Account takeover is the #1 way packages get hijacked.
-- [ ] ✅ **CI publishes via OIDC Trusted Publishing — no long-lived token.**
+- [x] ✅ **CI publishes via OIDC Trusted Publishing — no long-lived token.**
       `release.yml` has `id-token: write` and no `NPM_TOKEN`; npm verifies the
       GitHub OIDC claim instead. A leaked CI secret can't publish because there
       is no publish secret to leak. Provenance is attached automatically.
@@ -20,7 +20,7 @@ org-level actions only a human can take.
       publish — see "First publish" below): npm package → Settings → Trusted
       Publishing → add GitHub Actions, repo `justinwaite/tanstack-form-utils`,
       workflow `release.yml`. Restrict to the `main` branch if offered.
-- [ ] ✅ **`access: public`** is set intentionally in both `package.json`
+- [x] ✅ **`access: public`** is set intentionally in both `package.json`
       (`publishConfig`) and `.changeset/config.json` — a scoped package defaults
       to private/restricted.
 
@@ -37,7 +37,7 @@ the very first release can't use OIDC:
 
 ## What ships in the tarball
 
-- [ ] ✅ **`files` allowlist** in `package.json` ships only `dist` + `src` and
+- [x] ✅ **`files` allowlist** in `package.json` ships only `dist` + `src` and
       **excludes tests** (`!src/**/*.test.ts(x)`). An allowlist beats
       `.npmignore` because new files are excluded by default.
 - [ ] **Verify the tarball before every release**: `pnpm pack --dry-run` (or
@@ -48,10 +48,10 @@ the very first release can't use OIDC:
 
 ## Dependencies
 
-- [ ] ✅ **Lockfile is committed** and CI installs with
+- [x] ✅ **Lockfile is committed** and CI installs with
       `pnpm install --frozen-lockfile` (a drifted/tampered lockfile fails the
       build instead of silently resolving new code).
-- [ ] ✅ **Dependabot** watches both npm deps and the pinned GitHub Actions
+- [x] ✅ **Dependabot** watches both npm deps and the pinned GitHub Actions
       (`.github/dependabot.yml`). Review its PRs — don't auto-merge blindly.
 - [ ] **Treat dependency bumps as code review.** Read the diff/changelog for any
       new or transitive dependency, especially ones that add `postinstall`
@@ -68,12 +68,12 @@ the very first release can't use OIDC:
 
 ## CI / GitHub hygiene
 
-- [ ] ✅ **GitHub Actions pinned to full commit SHAs**, not tags. A tag like
+- [x] ✅ **GitHub Actions pinned to full commit SHAs**, not tags. A tag like
       `@v4` can be repointed at malicious code; a SHA can't.
-- [ ] ✅ **Least-privilege `GITHUB_TOKEN`.** Workflows default to
+- [x] ✅ **Least-privilege `GITHUB_TOKEN`.** Workflows default to
       `permissions: {}` / `contents: read` and opt into the minimum
       (`release.yml` grants write only to the publish job).
-- [ ] ✅ **No untrusted code runs with secrets.** Release triggers on
+- [x] ✅ **No untrusted code runs with secrets.** Release triggers on
       `push` to `main` only — never `pull_request_target` — so a fork PR can't
       reach the release pipeline or its OIDC identity. CI on PRs runs with
       read-only permissions and `persist-credentials: false`.
@@ -86,7 +86,7 @@ the very first release can't use OIDC:
 
 ## Vulnerability response
 
-- [ ] **Add a `SECURITY.md`** with a private reporting channel (GitHub private
+- [x] ✅ **Add a `SECURITY.md`** with a private reporting channel (GitHub private
       vulnerability reporting, or an email). Don't make reporters use public
       issues.
 - [ ] **Enable GitHub security features**: Dependabot alerts, secret scanning,

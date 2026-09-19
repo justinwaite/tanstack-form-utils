@@ -1,7 +1,9 @@
 import { Data, Effect, Schema, SchemaIssue } from "effect";
 
 import {
+  assertSafePayload,
   formDataToObject,
+  type FormDataLimits,
   isJsonContentType,
   type SubmissionResponse,
 } from "../server-validation.ts";
@@ -9,6 +11,13 @@ import { InvalidBodyError } from "./body-error.ts";
 import { coerceFormValue } from "./coercion.ts";
 import { parseFormData } from "./parse-form-data.ts";
 import { parseJsonBody } from "./parse-json-body.ts";
+
+export {
+  DEFAULT_FORM_DATA_LIMITS,
+  FormDataParseError,
+  type FormDataLimits,
+  type FormDataParseErrorReason,
+} from "../server-validation.ts";
 /**
  * Signals a form validation failure. The reply is returned (not thrown) so
  * React Router populates `actionData` without triggering the error boundary.
@@ -48,20 +57,21 @@ function schemaFailureToResponse(
   failureResult: ReturnType<typeof issueFormatter>,
 ): SubmissionResponse {
   const formErrors: string[] = [];
-  const fieldErrors: Partial<Record<string, string>> = {};
+  const fieldErrors: Array<[path: string, message: string]> = [];
 
   for (const issue of failureResult.issues) {
     if (!issue.path || issue.path.length === 0) {
       formErrors.push(issue.message);
     } else {
-      fieldErrors[issue.path.map(pathSegmentToString).join(".")] = issue.message;
+      fieldErrors.push([issue.path.map(pathSegmentToString).join("."), issue.message]);
     }
   }
 
   return {
     success: false,
     errorMap: { onServer: formErrors.length > 0 ? formErrors : undefined },
-    fieldErrors,
+    // `fromEntries` defines own properties, so a `__proto__` path can't hit the setter.
+    fieldErrors: Object.fromEntries(fieldErrors),
   };
 }
 
@@ -91,9 +101,27 @@ type ParseSubmissionResult<A> = Effect.Effect<
  */
 const tryFormDataToObject = (
   source: FormData | URLSearchParams,
+  limits: Partial<FormDataLimits> | undefined,
 ): Effect.Effect<unknown, InvalidBodyError> =>
   Effect.try({
-    try: () => formDataToObject(source),
+    try: () => formDataToObject(source, limits),
+    catch: (cause) => new InvalidBodyError({ cause }),
+  });
+
+/**
+ * Holds an already-parsed (e.g. JSON) payload to the same key rules as FormData
+ * (see `assertSafePayload`). Fails with `InvalidBodyError` for a prototype key
+ * or excessive nesting.
+ */
+const trySafePayload = (
+  payload: unknown,
+  limits: Partial<FormDataLimits> | undefined,
+): Effect.Effect<unknown, InvalidBodyError> =>
+  Effect.try({
+    try: () => {
+      assertSafePayload(payload, limits);
+      return payload;
+    },
     catch: (cause) => new InvalidBodyError({ cause }),
   });
 
@@ -131,16 +159,18 @@ const resolveEntries = (
  * (see {@link resolveEntries}), converting a `FormData`/`URLSearchParams`
  * result into a plain object via `formDataToObject`.
  *
- * Fails with `InvalidBodyError` if the URL, body, or form key paths can't be parsed.
+ * Fails with `InvalidBodyError` if the URL, body, or form key paths can't be
+ * parsed, or the payload is unsafe (see SECURITY.md).
  */
 const resolveRawInput = (
   payload: Request | FormData | URLSearchParams | Schema.Json,
+  limits: Partial<FormDataLimits> | undefined,
 ): Effect.Effect<unknown, InvalidBodyError> =>
   resolveEntries(payload).pipe(
     Effect.flatMap((entries) =>
       entries instanceof FormData || entries instanceof URLSearchParams
-        ? tryFormDataToObject(entries)
-        : Effect.succeed(entries),
+        ? tryFormDataToObject(entries, limits)
+        : trySafePayload(entries, limits),
     ),
   );
 
@@ -173,6 +203,8 @@ export function parseSubmission<A>(
   options: {
     schema: Schema.Codec<A, unknown>;
     init?: ResponseInit;
+    /** Structural limits for untrusted input; defaults to `DEFAULT_FORM_DATA_LIMITS`. */
+    limits?: Partial<FormDataLimits>;
   },
 ): ParseSubmissionResult<A> {
   const validationInit = options.init ?? { status: 400 };
@@ -184,7 +216,7 @@ export function parseSubmission<A>(
     });
 
   return Effect.gen(function* () {
-    const rawInput = yield* resolveRawInput(payload);
+    const rawInput = yield* resolveRawInput(payload, options.limits);
 
     // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
     // the server validates the same shape the client did.
