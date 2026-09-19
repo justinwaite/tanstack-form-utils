@@ -145,13 +145,13 @@ describe("formDataToObject", () => {
     expect(formDataToObject(fd)).toEqual({ invoice: { lineItems: [] } });
   });
 
-  it("overwrites duplicate nested keys (last write wins)", () => {
+  it("collects duplicate nested keys into an array, like flat keys", () => {
     const fd = new FormData();
     fd.append("contact.email", "first@acme.co");
     fd.append("contact.email", "second@acme.co");
 
     expect(formDataToObject(fd)).toEqual({
-      contact: { email: "second@acme.co" },
+      contact: { email: ["first@acme.co", "second@acme.co"] },
     });
   });
 
@@ -274,13 +274,13 @@ describe("objectToFormData", () => {
     expect(result.get("active")).toBe("true");
   });
 
-  it("coerces Date values to strings", () => {
+  it("serializes Date values as ISO strings", () => {
     const date = new Date("2026-01-15T00:00:00.000Z");
     const result = objectToFormData({
       createdAt: date,
     } as unknown as Record<string, unknown>);
 
-    expect(result.get("createdAt")).toBe(date.toString());
+    expect(result.get("createdAt")).toBe("2026-01-15T00:00:00.000Z");
   });
 
   it("handles deeply nested structures", () => {

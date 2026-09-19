@@ -1,4 +1,5 @@
 export * from "./app-form.tsx";
+export * from "./request-body.ts";
 export * from "./server-validation.ts";
 
 // Re-exported for convenience so consumers can create the field/form contexts

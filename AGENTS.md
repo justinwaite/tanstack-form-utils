@@ -1,3 +1,20 @@
+# Security
+
+This package parses untrusted input from the network, so it has a high security surface. The security test suite is in `test/security`. Read `test/security/README.md` and `SECURITY.md` before you change parsing, coercion, serialization, or limits.
+
+## Validate every change against the security suite
+
+- Run `vp run test:security` after each change to code in `src`. Also run `vp test`.
+- Make sure that every security test passes before you finish. Do not delete, skip, or weaken a security test to make a change pass.
+- If a security test fails, treat the failure as a possible vulnerability. Fix the code, not the test.
+- If a change must alter a required behavior, update the matching row in `SECURITY.md` and explain the reason in your summary.
+
+## Add security tests for new features and API changes
+
+- If you add a feature or change the public API, add security tests in the same change. This includes new exports, options, limits, content types, and error reasons.
+- Cover the known attack vectors that apply. These include prototype pollution, duplicate keys and parameters, resource exhaustion, malformed input, and unsafe coercion.
+- Follow the rules in `test/security/README.md`. Send each attack through the public entry points with `consumers`, and add a row to the required behavior tables in `SECURITY.md`.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

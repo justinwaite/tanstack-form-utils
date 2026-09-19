@@ -1,0 +1,19 @@
+Security suite (test/security) run against release 0.5.0.
+Node.js v24.21.0. Command: vp test run --project security --reporter=json
+
+No shims and no skipped tests.
+
+Totals: passed 862, failed 0, skipped 0
+
+Per file (passed / failed / skipped):
+  test/security/client-merge.test.ts: 5 / 0 / 0
+  test/security/coercion.test.ts: 116 / 0 / 0
+  test/security/corpus.test.ts: 415 / 0 / 0
+  test/security/option-gadgets.test.ts: 27 / 0 / 0
+  test/security/parameter-pollution.test.ts: 52 / 0 / 0
+  test/security/path-parsing.test.ts: 48 / 0 / 0
+  test/security/prototype-pollution.test.ts: 106 / 0 / 0
+  test/security/resource-limits.test.ts: 82 / 0 / 0
+  test/security/serialization.test.ts: 11 / 0 / 0
+
+Only failed and skipped tests are listed below.

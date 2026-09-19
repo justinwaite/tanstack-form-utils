@@ -1,0 +1,764 @@
+Security suite (test/security) run against release 0.4.3.
+Node.js v24.21.0. Command: vp test run --project security --reporter=json
+
+Shims applied to release 0.4.3 only, so that the suite can load and finish.
+They add names that the suite imports. They do not change any 0.4.3 behavior.
+1. src/core.ts: "export" added to mergeServerErrors, so that the test can import it.
+2. src/audit-shims.ts, exported from src/index.ts and src/zod/index.ts:
+   - FormDataParseError: an empty class. Release 0.4.3 never throws it.
+   - DEFAULT_FORM_DATA_LIMITS: the default limit values of 0.5.0.
+   - readRequestBody: the body read of the 0.4.3 Effect parseSubmission,
+     request.formData() or request.json(), with no limits.
+3. Four tests skipped, for both the zod and the effect consumer (8 in total).
+   On 0.4.3, each one stops the test worker with
+   "FATAL ERROR: invalid table size Allocation failed - JavaScript heap out of memory":
+   - "rejects a 4-billion index in less than 50 ms" (F-2)
+   - "rejects `length` on an array" (F-3)
+   - "rejects 1000 sparse arrays (a 21 KB body) in less than 50 ms" (F-12)
+   - "ignores a polluted Object.prototype.limits" (F-13)
+
+Totals: passed 506, failed 348, skipped 8
+
+Per file (passed / failed / skipped):
+  test/security/client-merge.test.ts: 2 / 3 / 0
+  test/security/coercion.test.ts: 64 / 52 / 0
+  test/security/corpus.test.ts: 373 / 42 / 0
+  test/security/option-gadgets.test.ts: 0 / 25 / 2
+  test/security/parameter-pollution.test.ts: 22 / 30 / 0
+  test/security/path-parsing.test.ts: 14 / 34 / 0
+  test/security/prototype-pollution.test.ts: 16 / 90 / 0
+  test/security/resource-limits.test.ts: 14 / 62 / 6
+  test/security/serialization.test.ts: 1 / 10 / 0
+
+Only failed and skipped tests are listed below.
+
+## test/security/client-merge.test.ts
+
+failed  | mergeServerErrors (CWE-1321, ASVS V15.3.6, F-5) > skips a __proto__ field error key
+        AssertionError: a built-in prototype was polluted: expected [ 'errorMap', 'isTouched' ] to deeply equal []
+failed  | mergeServerErrors (CWE-1321, ASVS V15.3.6, F-5) > skips a prototype field error key
+        AssertionError: expected true to be false // Object.is equality
+failed  | mergeServerErrors (CWE-1321, ASVS V15.3.6, F-5) > creates new metadata for an inherited name instead of mutating the prototype
+        AssertionError: expected false to be true // Object.is equality
+
+## test/security/coercion.test.ts
+
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "0x10"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "0b101"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "0o7"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce " 5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "5 "
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "\t5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > does not coerce "\n5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > rejects the JSON number 1e400, which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > rejects the JSON number -1e400, which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'zod' consumer > numbers (F-17) > rejects the JSON number [1e400], which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce "0x10"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce "0b1"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce "0o7"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce " 5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce "5 "
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > does not coerce "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > bigints (F-17) > rejects a 1000000-digit string in less than 50 ms
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "0x10"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "0b101"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "0o7"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce " 5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "5 "
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "\t5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "\n5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "Infinity"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "-Infinity"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "1e400"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > does not coerce "-1e400"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > rejects the JSON number 1e400, which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > rejects the JSON number -1e400, which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'effect' consumer > numbers (F-17) > rejects the JSON number [1e400], which overflows to Infinity
+        AssertionError: expected undefined to be 'non-finite-number' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce "0x10"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce "0b1"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce "0o7"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce " 5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce "5 "
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > does not coerce "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > bigints (F-17) > rejects a 1000000-digit string in less than 50 ms
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "1"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "0"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "Tue Mar 5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "Tue Mar 05 2024 00:00:00 GMT-0600"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-02-30"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2023-02-29"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-1-5"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "+002024-01-05"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-01-05T10:00"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-01-05T10:00:00"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-01-05T10:00:00.000"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-01-05T24:00:00Z"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce "2024-01-05 10:00:00Z"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | zod consumer: dates (F-18) > does not coerce " 2024-01-05"
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+
+## test/security/corpus.test.ts
+
+failed  | 'zod' consumer: JSONTestSuite > rejects y_object_duplicated_key.json with duplicate-key
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > rejects y_object_duplicated_key_and_value.json with duplicate-key
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_number_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_number_neg_int_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_number_pos_double_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_number_real_neg_overflow.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_number_real_pos_overflow.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_object_key_lone_2nd_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_1st_surrogate_but_2nd_missing.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_1st_valid_surrogate_2nd_invalid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogate_and_escape_valid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogate_pair.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogates_escape_valid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_invalid_lonely_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_invalid_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_inverted_surrogates_U+1D11E.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: JSONTestSuite > accepts or rejects i_string_lone_second_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > rejects y_object_duplicated_key.json with duplicate-key
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > rejects y_object_duplicated_key_and_value.json with duplicate-key
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_number_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_number_neg_int_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_number_pos_double_huge_exp.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_number_real_neg_overflow.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_number_real_pos_overflow.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_object_key_lone_2nd_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_1st_surrogate_but_2nd_missing.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_1st_valid_surrogate_2nd_invalid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogate_and_escape_valid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogate_pair.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_incomplete_surrogates_escape_valid.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_invalid_lonely_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_invalid_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_inverted_surrogates_U+1D11E.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'effect' consumer: JSONTestSuite > accepts or rejects i_string_lone_second_surrogate.json, and an accepted value is interoperable
+        AssertionError: expected false to be true // Object.is equality
+failed  | 'zod' consumer: Bishop Fox JSON interoperability > 'Duplicate key precedence': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+failed  | 'zod' consumer: Bishop Fox JSON interoperability > 'Character truncation, lone surrogate': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+failed  | 'zod' consumer: Bishop Fox JSON interoperability > 'Large number, positive exponent': 'rejected'
+        AssertionError: expected 'invalid' to be 'rejected' // Object.is equality
+failed  | 'zod' consumer: Bishop Fox JSON interoperability > 'Large number, negative exponent': 'rejected'
+        AssertionError: expected 'invalid' to be 'rejected' // Object.is equality
+failed  | 'effect' consumer: Bishop Fox JSON interoperability > 'Duplicate key precedence': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+failed  | 'effect' consumer: Bishop Fox JSON interoperability > 'Character truncation, lone surrogate': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+failed  | 'effect' consumer: Bishop Fox JSON interoperability > 'Large number, positive exponent': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+failed  | 'effect' consumer: Bishop Fox JSON interoperability > 'Large number, negative exponent': 'rejected'
+        AssertionError: expected 'accepted' to be 'rejected' // Object.is equality
+
+## test/security/option-gadgets.test.ts
+
+skipped | 'zod' consumer > ignores a polluted Object.prototype.limits
+failed  | 'zod' consumer > ignores a polluted Object.prototype.maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > ignores a polluted Object.prototype.maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > ignores a polluted Object.prototype.maxArraySlots
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > ignores a polluted Object.prototype.maxFields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'zod' consumer > ignores a polluted Object.prototype.maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+skipped | 'effect' consumer > ignores a polluted Object.prototype.limits
+failed  | 'effect' consumer > ignores a polluted Object.prototype.maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > ignores a polluted Object.prototype.maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > ignores a polluted Object.prototype.maxArraySlots
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > ignores a polluted Object.prototype.maxFields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'effect' consumer > ignores a polluted Object.prototype.maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | effect consumer: init > ignores a polluted Object.prototype.init
+        AssertionError: expected { tag: 'invalid', …(2) } to match object { tag: 'invalid', status: 400 }
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = -1
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = 1.5
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = null
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = null
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = "5"
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > formDataToObject throws a TypeError for maxDepth = null
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = -1
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = 1.5
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = null
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = null
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = "5"
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > readRequestBody throws a TypeError for maxBodyBytes = null
+        Error: promise resolved "FormData { a: '1' }" instead of rejecting
+failed  | limits that are not non-negative integers are a programming error > the Zod parseSubmission throws a TypeError
+        AssertionError: expected function to throw an error, but it didn't
+failed  | limits that are not non-negative integers are a programming error > the Effect parseSubmission dies with a TypeError
+        Error: promise resolved "{ value: { a: 'x' }, …(1) }" instead of rejecting
+
+## test/security/parameter-pollution.test.ts
+
+failed  | 'zod' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > treats `role` and `[role]` as one field with two values (F-11)
+        AssertionError: expected { tag: 'accepted', …(1) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'zod' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > collects a nested duplicate key, and does not keep only the last value (F-15)
+        AssertionError: expected { tag: 'accepted', …(1) } to match object { tag: 'invalid' }
+failed  | 'zod' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > treats `items.0` and `items[0]` as one field with two values (F-15)
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'zod' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > rejects a path under a field that was sent twice
+        AssertionError: expected undefined to be 'conflicting-path' // Object.is equality
+failed  | 'zod' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > rejects a key used as both a value and a container, in either order
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","role":"user","role":"admin"}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","user":{"role":"user","role":"admin"}}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","items":[{"k":1,"k":2}]}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","role":"user","r\u006fle":"admin"}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'zod' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects the same data in both formats (parity, ASVS V1.5.3)
+        AssertionError: expected 'accepted' not to be 'accepted' // Object.is equality
+failed  | 'zod' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"\ud800"}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'zod' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a\udc00b"}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'zod' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a","qty\ud800":1}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'zod' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a","x":["\udfaa"]}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'zod' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects a lone surrogate in an already-parsed payload
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'effect' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > treats `role` and `[role]` as one field with two values (F-11)
+        AssertionError: expected { tag: 'accepted', …(1) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'effect' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > collects a nested duplicate key, and does not keep only the last value (F-15)
+        AssertionError: expected { tag: 'accepted', …(1) } to match object { tag: 'invalid' }
+failed  | 'effect' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > treats `items.0` and `items[0]` as one field with two values (F-15)
+        AssertionError: expected 'accepted' to be 'invalid' // Object.is equality
+failed  | 'effect' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > rejects a path under a field that was sent twice
+        AssertionError: expected undefined to be 'conflicting-path' // Object.is equality
+failed  | 'effect' consumer > FormData duplicate keys (CWE-235, WSTG-INJT-04, ASVS V15.3.7) > rejects a key used as both a value and a container, in either order
+        AssertionError: expected 'unreadable' to be 'conflicting-path' // Object.is equality
+failed  | 'effect' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","role":"user","role":"admin"}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","user":{"role":"user","role":"admin"}}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","items":[{"k":1,"k":2}]}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects {"name":"a","role":"user","r\u006fle":"admin"}
+        AssertionError: expected undefined to be 'duplicate-key' // Object.is equality
+failed  | 'effect' consumer > JSON duplicate keys (CWE-235, RFC 7493 §2.3, F-14) > rejects the same data in both formats (parity, ASVS V1.5.3)
+        AssertionError: expected 'accepted' not to be 'accepted' // Object.is equality
+failed  | 'effect' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"\ud800"}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'effect' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a\udc00b"}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'effect' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a","qty\ud800":1}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'effect' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects {"name":"a","x":["\udfaa"]}
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+failed  | 'effect' consumer > lone surrogates (CWE-176, RFC 7493 §2.1, F-21) > rejects a lone surrogate in an already-parsed payload
+        AssertionError: expected undefined to be 'malformed-string' // Object.is equality
+
+## test/security/path-parsing.test.ts
+
+failed  | parsePath (unit) > keeps "-1" as a string segment (F-7)
+        AssertionError: expected [ 'items', -1 ] to deeply equal [ 'items', '-1' ]
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses valueOf.x as a nested field
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses hasOwnProperty.x as a nested field
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses toString.x as a nested field
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses isPrototypeOf.x as a nested field
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses __defineGetter__.x as a nested field
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > inherited property names are ordinary fields (F-4) > parses an inherited name inside a nested object
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > only canonical non-negative integers are indices (F-7) > builds an object, not an array, for a negative segment
+        AssertionError: expected { tag: 'accepted', …(1) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects ""
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects "."
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects ".."
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects "[]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects "["
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects "]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > empty paths are rejected (F-8) > rejects "[.]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'zod' consumer > error messages (F-10, CWE-117) > starts with Malformed form submission
+        Error: expected a rejection
+failed  | 'zod' consumer > error messages (F-10, CWE-117) > shortens a long key
+        Error: expected a rejection
+failed  | 'zod' consumer > error messages (F-10, CWE-117) > never contains the submitted value
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses valueOf.x as a nested field
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses hasOwnProperty.x as a nested field
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', value: { …(1) } }
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses toString.x as a nested field
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses isPrototypeOf.x as a nested field
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', value: { …(1) } }
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses __defineGetter__.x as a nested field
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', value: { …(1) } }
+failed  | 'effect' consumer > inherited property names are ordinary fields (F-4) > parses an inherited name inside a nested object
+        AssertionError: expected { tag: 'rejected', …(2) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'effect' consumer > only canonical non-negative integers are indices (F-7) > builds an object, not an array, for a negative segment
+        AssertionError: expected { tag: 'accepted', …(1) } to deeply equal { tag: 'accepted', …(1) }
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects ""
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects "."
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects ".."
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects "[]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects "["
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects "]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > empty paths are rejected (F-8) > rejects "[.]"
+        AssertionError: expected undefined to be 'empty-path' // Object.is equality
+failed  | 'effect' consumer > error messages (F-10, CWE-117) > starts with Malformed form submission
+        Error: expected a rejection
+failed  | 'effect' consumer > error messages (F-10, CWE-117) > shortens a long key
+        Error: expected a rejection
+
+## test/security/prototype-pollution.test.ts
+
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "[__proto__][polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "[__proto__].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.__proto__.polluted" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.b.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "items.0.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "items[0][__proto__][polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "items[0].__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor.prototype.polluted" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor[prototype][polluted]" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.constructor.prototype.polluted" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "items.0.constructor.prototype.polluted" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.constructor.constructor" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.prototype" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "prototype" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.0" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[0]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__pro]to__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__]].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "]__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "..__proto__..polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects ".__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "[[__proto__]].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[]" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.__proto__[]" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor.prototype[]" in a urlencoded body
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a multipart body with a File value
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key that follows valid keys
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a repeated dangerous flat key
+        Error: Malformed form submission: conflicting field name paths
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a GET query string
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a percent-encoded dangerous key after the one URL decode
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a FormData object passed directly
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"polluted":true}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"polluted":true}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":[{"__proto__":{"polluted":true}}]} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":[{"__proto__":{"polluted":true}}]} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":{"constructor":{"prototype":{"polluted":true}}}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":{"constructor":{"prototype":{"polluted":true}}}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"__proto__":{"polluted":true}}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"__proto__":{"polluted":true}}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects a dangerous key in a +json media type
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "[__proto__][polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "[__proto__].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.__proto__.polluted" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.b.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "items.0.__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "items[0][__proto__][polluted]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "items[0].__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor.prototype.polluted" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor[prototype][polluted]" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.constructor.prototype.polluted" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "items.0.constructor.prototype.polluted" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.constructor.constructor" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.prototype" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "prototype" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__.0" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[0]" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__pro]to__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__]].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "]__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "..__proto__..polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects ".__proto__.polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "[[__proto__]].polluted" in a urlencoded body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "__proto__[]" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "a.__proto__[]" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects "constructor.prototype[]" in a urlencoded body
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a multipart body with a File value
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key that follows valid keys
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a repeated dangerous flat key
+        AssertionError: expected 'unreadable' to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a GET query string
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a percent-encoded dangerous key after the one URL decode
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > dangerous FormData keys are rejected (F-1) > rejects a dangerous key in a FormData object passed directly
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"polluted":true}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"polluted":true}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":[{"__proto__":{"polluted":true}}]} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":[{"__proto__":{"polluted":true}}]} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":{"constructor":{"prototype":{"polluted":true}}}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","x":{"constructor":{"prototype":{"polluted":true}}}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"__proto__":{"polluted":true}}} in a JSON body
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects {"name":"a","__proto__":{"__proto__":{"polluted":true}}} as an already-parsed payload
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same key rules (ASVS V1.5.3, F-9) > rejects a dangerous key in a +json media type
+        AssertionError: expected undefined to be 'unsafe-key' // Object.is equality
+
+## test/security/resource-limits.test.ts
+
+skipped | 'zod' consumer > array indices (F-2, F-3) > rejects a 4-billion index in less than 50 ms
+failed  | 'zod' consumer > array indices (F-2, F-3) > rejects the bracket form of a huge index
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > array indices (F-2, F-3) > rejects a huge index nested inside an array
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > array indices (F-2, F-3) > rejects the index equal to maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+skipped | 'zod' consumer > array indices (F-2, F-3) > rejects `length` on an array
+failed  | 'zod' consumer > array indices (F-2, F-3) > rejects any non-index key on an existing array
+        AssertionError: expected undefined to be 'conflicting-path' // Object.is equality
+failed  | 'zod' consumer > array indices (F-2, F-3) > uses a caller-supplied maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > total array slots across fields (F-12) > rejects 100 sparse arrays (a 2 KB body) in less than 50 ms
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+skipped | 'zod' consumer > total array slots across fields (F-12) > rejects 1000 sparse arrays (a 21 KB body) in less than 50 ms
+failed  | 'zod' consumer > total array slots across fields (F-12) > counts the slots of every array, empty slots included
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > total array slots across fields (F-12) > counts the arrays that duplicate keys make
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > path depth (F-6) > rejects a path above maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > path depth (F-6) > rejects a 20000-segment path without a stack overflow
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > path depth (F-6) > counts bracket segments toward depth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > path depth (F-6) > uses a caller-supplied maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > field count (F-6) > rejects more than maxFields entries
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'zod' consumer > field count (F-6) > counts duplicate keys toward the limit
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > rejects a JSON array above maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > rejects a JSON array of 1000000 items with the default limits
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > rejects a JSON object with more keys than maxFields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > counts JSON array items as fields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > rejects JSON arrays whose total length is above maxArraySlots
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > rejects JSON nesting above maxDepth without a stack overflow
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > applies the limits to an already-parsed payload in less than 50 ms
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > JSON payloads get the same limits (F-16) > counts the slots of a sparse already-parsed array
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'zod' consumer > body size (F-19) > rejects a Content-Length above maxBodyBytes without a read of the body
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'zod' consumer > body size (F-19) > stops a chunked body at maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'zod' consumer > body size (F-19) > stops a chunked body at the default maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'zod' consumer > body size (F-19) > counts the real bytes when Content-Length is smaller than the body
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'zod' consumer > body size (F-19) > rejects a JSON body above maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'zod' consumer > files (F-19) > rejects more files than maxFiles
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+failed  | 'zod' consumer > files (F-19) > rejects 50000 file parts
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+failed  | 'zod' consumer > files (F-19) > rejects a file above maxFileBytes
+        AssertionError: expected undefined to be 'file-size' // Object.is equality
+failed  | 'zod' consumer > files (F-19) > applies the file limits to a FormData object passed directly
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+skipped | 'effect' consumer > array indices (F-2, F-3) > rejects a 4-billion index in less than 50 ms
+failed  | 'effect' consumer > array indices (F-2, F-3) > rejects the bracket form of a huge index
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > array indices (F-2, F-3) > rejects a huge index nested inside an array
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > array indices (F-2, F-3) > rejects the index equal to maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+skipped | 'effect' consumer > array indices (F-2, F-3) > rejects `length` on an array
+failed  | 'effect' consumer > array indices (F-2, F-3) > rejects any non-index key on an existing array
+        AssertionError: expected undefined to be 'conflicting-path' // Object.is equality
+failed  | 'effect' consumer > array indices (F-2, F-3) > uses a caller-supplied maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > total array slots across fields (F-12) > rejects 100 sparse arrays (a 2 KB body) in less than 50 ms
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+skipped | 'effect' consumer > total array slots across fields (F-12) > rejects 1000 sparse arrays (a 21 KB body) in less than 50 ms
+failed  | 'effect' consumer > total array slots across fields (F-12) > counts the slots of every array, empty slots included
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > total array slots across fields (F-12) > counts the arrays that duplicate keys make
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > path depth (F-6) > rejects a path above maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > path depth (F-6) > rejects a 20000-segment path without a stack overflow
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > path depth (F-6) > counts bracket segments toward depth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > path depth (F-6) > uses a caller-supplied maxDepth
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > field count (F-6) > rejects more than maxFields entries
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'effect' consumer > field count (F-6) > counts duplicate keys toward the limit
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > rejects a JSON array above maxArrayLength
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > rejects a JSON array of 1000000 items with the default limits
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > rejects a JSON object with more keys than maxFields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > counts JSON array items as fields
+        AssertionError: expected undefined to be 'field-count' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > rejects JSON arrays whose total length is above maxArraySlots
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > rejects JSON nesting above maxDepth without a stack overflow
+        AssertionError: expected undefined to be 'depth' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > applies the limits to an already-parsed payload in less than 50 ms
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > JSON payloads get the same limits (F-16) > counts the slots of a sparse already-parsed array
+        AssertionError: expected undefined to be 'array-index' // Object.is equality
+failed  | 'effect' consumer > body size (F-19) > rejects a Content-Length above maxBodyBytes without a read of the body
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'effect' consumer > body size (F-19) > stops a chunked body at maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'effect' consumer > body size (F-19) > stops a chunked body at the default maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'effect' consumer > body size (F-19) > counts the real bytes when Content-Length is smaller than the body
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'effect' consumer > body size (F-19) > rejects a JSON body above maxBodyBytes
+        AssertionError: expected undefined to be 'body-size' // Object.is equality
+failed  | 'effect' consumer > files (F-19) > rejects more files than maxFiles
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+failed  | 'effect' consumer > files (F-19) > rejects 50000 file parts
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+failed  | 'effect' consumer > files (F-19) > rejects a file above maxFileBytes
+        AssertionError: expected undefined to be 'file-size' // Object.is equality
+failed  | 'effect' consumer > files (F-19) > applies the file limits to a FormData object passed directly
+        AssertionError: expected undefined to be 'file-count' // Object.is equality
+
+## test/security/serialization.test.ts
+
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"a.b":1}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"prefs":{"a.b":1}}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"prefs":{"x[0]":2}}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"prefs":{"[x]":2}}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"prefs":{"x]":2}}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"":1}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"prefs":{"":1}}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | objectToFormData refuses keys with path delimiters (F-20) > throws a TypeError for {"list":[{"a.b":1}]}
+        AssertionError: expected function to throw an error, but it didn't
+failed  | 'zod' consumer: round trip from client state to server value > gives the server the same value that the client had
+        AssertionError: expected { tag: 'accepted', value: { …(10) } } to deeply equal { tag: 'accepted', value: { …(10) } }
+failed  | 'effect' consumer: round trip from client state to server value > gives the server the same value that the client had
+        AssertionError: expected { tag: 'accepted', value: { …(10) } } to deeply equal { tag: 'accepted', value: { …(10) } }

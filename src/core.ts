@@ -33,7 +33,7 @@ import {
 } from "react-router";
 
 import { type FormSubmitMeta } from "./app-form.tsx";
-import { objectToFormData, type SubmissionResponse } from "./server-validation.ts";
+import { isUnsafeKey, objectToFormData, type SubmissionResponse } from "./server-validation.ts";
 
 /** Options every variant adds on top of TanStack's `FormOptions`. */
 export type AppFormExtras<TSchema> = {
@@ -236,18 +236,24 @@ export function useSharedFormProps({
  * visited and displays errors immediately, matching the behavior of fields the
  * user has already interacted with.
  */
-function mergeServerErrors(baseForm: AnyFormApi, serverResult: SubmissionResponse): AnyFormApi {
+export function mergeServerErrors(
+  baseForm: AnyFormApi,
+  serverResult: SubmissionResponse,
+): AnyFormApi {
   mergeForm(baseForm, { errorMap: serverResult.errorMap });
 
+  const fieldMetaBase = baseForm.state.fieldMetaBase;
   for (const [field, error] of Object.entries(serverResult.fieldErrors)) {
-    if (!error) continue;
+    // Field names come from the server response; never let one reach a
+    // prototype (`fieldMetaBase.__proto__` is `Object.prototype`).
+    if (!error || isUnsafeKey(field)) continue;
     const issueFormat = [{ message: error }];
-    const existing = baseForm.state.fieldMetaBase[field];
+    const existing = Object.hasOwn(fieldMetaBase, field) ? fieldMetaBase[field] : undefined;
     if (existing) {
       existing.errorMap = { ...existing.errorMap, onServer: issueFormat };
       existing.isTouched = true;
     } else {
-      baseForm.state.fieldMetaBase[field] = {
+      fieldMetaBase[field] = {
         isValidating: false,
         isTouched: true,
         isBlurred: true,
