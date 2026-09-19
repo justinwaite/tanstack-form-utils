@@ -42,6 +42,7 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "test:unit": "vp test run --project unit",
+    "test:security": "vp test run --project security",
     "test:browser": "vp test run --project browser",
     "test:browser:install": "vp exec playwright install chromium",
     "check": "vp check",

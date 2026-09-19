@@ -1,17 +1,19 @@
 # Test suite
 
-Two Vitest projects, configured in `vite.config.ts` under `test.projects`:
+Three Vitest projects, configured in `vite.config.ts` under `test.projects`:
 
-| Project   | Files                    | Environment                      | What it covers                                                                     |
-| --------- | ------------------------ | -------------------------------- | ---------------------------------------------------------------------------------- |
-| `unit`    | `src/**/*.test.{ts,tsx}` | Node                             | The framework-agnostic helpers: coercion, FormData round-trips, `parseSubmission`. |
-| `browser` | `test/**/*.spec.tsx`     | Chromium (Playwright via Vitest) | The React + React Router behavior of `useAppForm` / `AppForm`, end-to-end.         |
+| Project    | Files                        | Environment                      | What it covers                                                                     |
+| ---------- | ---------------------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| `unit`     | `src/**/*.test.{ts,tsx}`     | Node                             | The framework-agnostic helpers: coercion, FormData round-trips, `parseSubmission`. |
+| `security` | `test/security/**/*.test.ts` | Node                             | The black-box security suite. See [security/README.md](security/README.md).        |
+| `browser`  | `test/**/*.spec.tsx`         | Chromium (Playwright via Vitest) | The React + React Router behavior of `useAppForm` / `AppForm`, end-to-end.         |
 
 ## Running
 
 ```bash
 vp test run               # both projects
 vp test run --project unit
+vp test run --project security   # or: vp run test:security
 vp test run --project browser
 vp test watch             # watch mode
 

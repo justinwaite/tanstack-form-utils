@@ -2,6 +2,7 @@ import type { $ZodType, input, output } from "zod/v4/core";
 
 import z from "zod";
 
+import { ownOption, resolveLimits } from "../limits.ts";
 import {
   assertSafePayload,
   formDataToObject,
@@ -20,6 +21,7 @@ export {
   type FormDataParseErrorReason,
   type SubmissionResponse,
 } from "../server-validation.ts";
+export { readRequestBody } from "../request-body.ts";
 
 type Submission<Schema extends $ZodType> =
   | {
@@ -33,12 +35,28 @@ type Submission<Schema extends $ZodType> =
       error: z.ZodError<output<Schema>>;
     };
 
+/**
+ * Parses and validates a submission with a Zod schema. Pass `FormData`,
+ * `URLSearchParams`, or an already-parsed value. To read a `Request` with a
+ * body size limit and a duplicate-key check for JSON, use `readRequestBody`:
+ *
+ * ```ts
+ * const submission = parseSubmission(await readRequestBody(request), { schema });
+ * ```
+ *
+ * Throws `FormDataParseError` for a malformed or unsafe payload (see
+ * SECURITY.md), and a `TypeError` if a limit is not a non-negative integer.
+ * Reads `schema` and `limits` only as own properties of `options`, so a
+ * polluted `Object.prototype` can't supply them.
+ */
 export function parseSubmission<Schema extends $ZodType>(
   // `FormData`/`URLSearchParams` are normalized below; any other value (e.g. an
   // already-parsed action payload) is passed straight to the schema.
   payload: unknown,
-  { schema, limits }: { schema: Schema; limits?: Partial<FormDataLimits> },
+  options: { schema: Schema; limits?: Partial<FormDataLimits> },
 ): Submission<Schema> {
+  const schema = ownOption(options, "schema") as Schema;
+  const limits = resolveLimits(ownOption(options, "limits"));
   // Both branches throw `FormDataParseError` for a malformed or unsafe payload
   // (conflicting paths, `__proto__` keys, limits exceeded — see SECURITY.md).
   let normalizedPayload: unknown;

@@ -1,16 +1,18 @@
 /**
- * Security suite for the client-side merge of server errors (audit finding F-5 in
- * audits/2026-09-18-form-parsing/REPORT.md).
+ * Client merge of server errors (CWE-1321, ASVS V15.3.6). SECURITY.md, "Client
+ * merge of server errors". Finding F-5 in
+ * audits/2026-09-18-form-parsing/REPORT.md.
+ *
  * `fieldErrors` keys come from a server response, so they must not be able to
- * write through to a built-in prototype.
+ * write through to a built-in prototype. `mergeServerErrors` is internal, so
+ * this file tests the unit directly.
  */
 import type { AnyFormApi } from "@tanstack/react-form";
 import { describe, expect, it } from "vite-plus/test";
 
-import { installPrototypeGuard } from "../test/prototype-guard.ts";
-
-import { mergeServerErrors } from "./core.ts";
-import type { SubmissionResponse } from "./server-validation.ts";
+import { mergeServerErrors } from "../../src/core.ts";
+import type { SubmissionResponse } from "../../src/index.ts";
+import { installPrototypeGuard } from "./prototype-guard.ts";
 
 installPrototypeGuard();
 

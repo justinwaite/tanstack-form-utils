@@ -1,0 +1,67 @@
+[
+  {
+    "technique": "Duplicate key precedence",
+    "body": "{\"qty\": 1, \"qty\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Character truncation, raw CR byte",
+    "body": "{\"qty\": 1, \"qty\r\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Character truncation, lone surrogate",
+    "body": "{\"qty\": 1, \"qty\\ud800\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Character truncation, extra quote",
+    "body": "{\"qty\": 1, \"qty\"\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Character truncation, bad escape",
+    "body": "{\"qty\": 1, \"qt\\y\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Comment truncation, number",
+    "body": "{\"qty\": 1, \"extra\": 1/*, \"qty\": -1, \"extra2\": 2*/}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Comment truncation, bare word",
+    "body": "{\"qty\": 1, \"extra\": a/*, \"qty\": -1, \"extra2\": b*/}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Comment truncation, string",
+    "body": "{\"qty\": 1, \"extra\": \"a/*\", \"qty\": -1, \"extra2\": \"b\"*/}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Comment truncation, line comment",
+    "body": "{\"qty\": 1, \"extra\": \"a\"//, \"qty\": -1}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Large number, positive integer",
+    "body": "{\"qty\": 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}",
+    "expect": "accepted"
+  },
+  {
+    "technique": "Large number, negative integer",
+    "body": "{\"qty\": -999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}",
+    "expect": "accepted"
+  },
+  {
+    "technique": "Large number, positive exponent",
+    "body": "{\"qty\": 1.0e4096}",
+    "expect": "rejected"
+  },
+  {
+    "technique": "Large number, negative exponent",
+    "body": "{\"qty\": -1.0e4096}",
+    "expect": "rejected"
+  }
+]

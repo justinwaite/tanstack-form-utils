@@ -1,16 +1,15 @@
 import { Data, Effect, Schema, SchemaIssue } from "effect";
 
+import { ownOption, resolveLimits } from "../limits.ts";
+import { readRequestBody } from "../request-body.ts";
 import {
   assertSafePayload,
   formDataToObject,
   type FormDataLimits,
-  isJsonContentType,
   type SubmissionResponse,
 } from "../server-validation.ts";
 import { InvalidBodyError } from "./body-error.ts";
 import { coerceFormValue } from "./coercion.ts";
-import { parseFormData } from "./parse-form-data.ts";
-import { parseJsonBody } from "./parse-json-body.ts";
 
 export {
   DEFAULT_FORM_DATA_LIMITS,
@@ -18,6 +17,8 @@ export {
   type FormDataLimits,
   type FormDataParseErrorReason,
 } from "../server-validation.ts";
+export { readRequestBody } from "../request-body.ts";
+
 /**
  * Signals a form validation failure. The reply is returned (not thrown) so
  * React Router populates `actionData` without triggering the error boundary.
@@ -127,32 +128,24 @@ const trySafePayload = (
 
 /**
  * Resolves a `parseSubmission` payload down to `FormData`/`URLSearchParams`
- * or an already-parsed JSON value, reading a `Request`'s body/query string
- * when one is given.
+ * or an already-parsed JSON value. A `Request` is read with `readRequestBody`,
+ * which applies `limits.maxBodyBytes` and rejects a duplicate JSON key. A
+ * `FormData`/`URLSearchParams`/JSON value passed directly is returned
+ * unchanged.
  *
- * - A `GET`/`HEAD` request has no body, so its URL's query string is read
- *   instead.
- * - A JSON media type (`application/json`, `*+json`) is read with
- *   `request.json()`; anything else is read as `FormData`.
- * - A `FormData`/`URLSearchParams`/JSON value passed directly is returned
- *   unchanged.
- *
- * Fails with `InvalidBodyError` if the URL or body can't be read.
+ * Fails with `InvalidBodyError` if the URL or body can't be read, or the body
+ * is too large or repeats a JSON key.
  */
 const resolveEntries = (
   payload: Request | FormData | URLSearchParams | Schema.Json,
-): Effect.Effect<unknown, InvalidBodyError> => {
-  if (!(payload instanceof Request)) return Effect.succeed(payload);
-
-  if (payload.method === "GET" || payload.method === "HEAD") {
-    return Effect.try({
-      try: () => new URL(payload.url).searchParams,
-      catch: (cause) => new InvalidBodyError({ cause }),
-    });
-  }
-
-  return isJsonContentType(payload) ? parseJsonBody(payload) : parseFormData(payload);
-};
+  limits: FormDataLimits,
+): Effect.Effect<unknown, InvalidBodyError> =>
+  payload instanceof Request
+    ? Effect.tryPromise({
+        try: () => readRequestBody(payload, limits),
+        catch: (cause) => new InvalidBodyError({ cause }),
+      })
+    : Effect.succeed(payload);
 
 /**
  * Reads the raw, still-string-typed payload out of a `parseSubmission` input
@@ -164,9 +157,9 @@ const resolveEntries = (
  */
 const resolveRawInput = (
   payload: Request | FormData | URLSearchParams | Schema.Json,
-  limits: Partial<FormDataLimits> | undefined,
+  limits: FormDataLimits,
 ): Effect.Effect<unknown, InvalidBodyError> =>
-  resolveEntries(payload).pipe(
+  resolveEntries(payload, limits).pipe(
     Effect.flatMap((entries) =>
       entries instanceof FormData || entries instanceof URLSearchParams
         ? tryFormDataToObject(entries, limits)
@@ -197,6 +190,11 @@ const resolveRawInput = (
  * The `init` option controls the HTTP status code of validation error responses
  * (defaults to 400). On success, call `reply()` to produce a `SubmissionResponse`
  * with `success: true` to pass back as `actionData`.
+ *
+ * `schema`, `init`, and `limits` are read only as own properties of `options`,
+ * so a polluted `Object.prototype` can't supply them. A limit that is not a
+ * non-negative integer is a programming error: the Effect dies with a
+ * `TypeError`.
  */
 export function parseSubmission<A>(
   payload: Request | FormData | URLSearchParams | Schema.Json,
@@ -207,7 +205,8 @@ export function parseSubmission<A>(
     limits?: Partial<FormDataLimits>;
   },
 ): ParseSubmissionResult<A> {
-  const validationInit = options.init ?? { status: 400 };
+  const schema = ownOption(options, "schema")!;
+  const validationInit = ownOption(options, "init") ?? { status: 400 };
 
   const toFormError = (response: SubmissionResponse): FormValidationError =>
     new FormValidationError({
@@ -216,13 +215,14 @@ export function parseSubmission<A>(
     });
 
   return Effect.gen(function* () {
-    const rawInput = yield* resolveRawInput(payload, options.limits);
+    const limits = resolveLimits(ownOption(options, "limits"));
+    const rawInput = yield* resolveRawInput(payload, limits);
 
     // Coerce string leaves (e.g. "2" → 2) toward the schema's expected types so
     // the server validates the same shape the client did.
-    const input = coerceFormValue(options.schema, rawInput);
+    const input = coerceFormValue(schema, rawInput);
 
-    const value = yield* Schema.decodeUnknownEffect(options.schema)(input).pipe(
+    const value = yield* Schema.decodeUnknownEffect(schema)(input).pipe(
       Effect.mapError((schemaError) =>
         toFormError(schemaFailureToResponse(issueFormatter(schemaError.issue))),
       ),

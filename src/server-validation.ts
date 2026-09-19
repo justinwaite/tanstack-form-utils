@@ -5,6 +5,12 @@
  * `SubmissionResponse` shape defined here.
  */
 
+import { type FormDataLimits, resolveLimits } from "./limits.ts";
+import { describeKey, FormDataParseError } from "./parse-error.ts";
+
+export { DEFAULT_FORM_DATA_LIMITS, type FormDataLimits } from "./limits.ts";
+export { FormDataParseError, type FormDataParseErrorReason } from "./parse-error.ts";
+
 /**
  * The normalized result of a server-side validation pass. Returned as
  * `actionData` and fed back into `useAppForm` via `serverResult` so client and
@@ -17,49 +23,6 @@ export type SubmissionResponse = {
 };
 
 /**
- * Bounds on how much structure `formDataToObject` (and the JSON payload check
- * in `parseSubmission`) will build from untrusted input. See SECURITY.md.
- */
-export type FormDataLimits = {
-  /** Maximum number of entries read from a `FormData`/`URLSearchParams`. */
-  maxFields: number;
-  /** Maximum number of segments in a field path, and nesting depth of a JSON payload. */
-  maxDepth: number;
-  /** Array indices must be below this, so one tiny field can't allocate a huge array. */
-  maxArrayLength: number;
-};
-
-export const DEFAULT_FORM_DATA_LIMITS: Readonly<FormDataLimits> = Object.freeze({
-  maxFields: 10_000,
-  maxDepth: 32,
-  maxArrayLength: 10_000,
-});
-
-export type FormDataParseErrorReason =
-  | "unsafe-key"
-  | "conflicting-path"
-  | "array-index"
-  | "depth"
-  | "field-count"
-  | "empty-path";
-
-/**
- * Thrown when a submission's structure is malformed or unsafe: a prototype key
- * (`__proto__`, `constructor`, `prototype`), conflicting paths, or a limit
- * exceeded. `reason` identifies which. The message never includes a submitted
- * value, and truncates the submitted key.
- */
-export class FormDataParseError extends Error {
-  readonly reason: FormDataParseErrorReason;
-
-  constructor(reason: FormDataParseErrorReason, detail: string) {
-    super(`Malformed form submission: ${detail}`);
-    this.name = "FormDataParseError";
-    this.reason = reason;
-  }
-}
-
-/**
  * Keys that reach a prototype when used as a property name. The same list
  * TanStack Form's `mergeForm` guards against.
  */
@@ -68,19 +31,6 @@ const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "p
 /** True for a key that could write through to a prototype (`__proto__`, `constructor`, `prototype`). */
 export function isUnsafeKey(key: PropertyKey): boolean {
   return UNSAFE_KEYS.has(String(key));
-}
-
-const MAX_KEY_IN_MESSAGE = 100;
-
-/** Quotes a submitted key for an error message, truncated so attacker input can't bloat logs. */
-function describeKey(key: string): string {
-  return JSON.stringify(
-    key.length > MAX_KEY_IN_MESSAGE ? `${key.slice(0, MAX_KEY_IN_MESSAGE)}…` : key,
-  );
-}
-
-function resolveLimits(limits: Partial<FormDataLimits> | undefined): FormDataLimits {
-  return { ...DEFAULT_FORM_DATA_LIMITS, ...limits };
 }
 
 /** A canonical non-negative integer: `0`, `7`, `42` — not `-1`, `01`, `1e3`, or `0x1`. */
@@ -148,15 +98,43 @@ function assertSafePath(key: string, segments: Array<string | number>, limits: F
   }
 }
 
+/** Bookkeeping for one `formDataToObject` call. */
+type ParseState = {
+  limits: FormDataLimits;
+  /** Total length of every array built so far, empty slots included. */
+  arraySlots: number;
+  /** Non-empty files read so far. */
+  files: number;
+  /** How many values each canonical leaf path (`items.0.name`) has received. */
+  leafCounts: Map<string, number>;
+  /** Arrays built from a repeated key. They hold values, so no path may descend into them. */
+  repeatedValues: WeakSet<unknown[]>;
+};
+
+/**
+ * Counts new array slots against `maxArraySlots`. One field can add at most
+ * `maxArrayLength` slots, but many small fields can add up (ASVS V1.5.3).
+ */
+function addArraySlots(state: ParseState, count: number, key: string): void {
+  state.arraySlots += count;
+  if (state.arraySlots > state.limits.maxArraySlots) {
+    throw new FormDataParseError(
+      "array-index",
+      `field ${describeKey(key)} brings the total array length above ${state.limits.maxArraySlots}`,
+    );
+  }
+}
+
 /**
  * Arrays accept only in-range numeric indices. A named key (e.g. `length`) or
  * a huge index would let one tiny field resize the array to billions of slots.
+ * An index past the end counts the new slots, empty ones included.
  */
 function assertWritable(
   container: Container,
   segment: string | number,
   key: string,
-  limits: FormDataLimits,
+  state: ParseState,
 ): void {
   if (!Array.isArray(container)) return;
   if (typeof segment !== "number") {
@@ -165,54 +143,129 @@ function assertWritable(
       `Conflicting form field paths: ${describeKey(key)} uses a named key on an array`,
     );
   }
-  if (segment >= limits.maxArrayLength) {
+  const { maxArrayLength } = state.limits;
+  if (segment >= maxArrayLength) {
     throw new FormDataParseError(
       "array-index",
-      `field ${describeKey(key)} has an array index of ${limits.maxArrayLength} or more`,
+      `field ${describeKey(key)} has an array index of ${maxArrayLength} or more`,
     );
+  }
+  if (segment >= container.length) {
+    addArraySlots(state, segment + 1 - container.length, key);
   }
 }
 
 /**
- * Sets a value on a nested object/array structure using a parsed path.
- * Creates intermediate objects or arrays as needed based on whether the
- * next segment is a number (array) or string (object).
+ * Walks to the container that holds the last segment of `segments`, creating
+ * intermediate objects or arrays as needed based on whether the next segment is
+ * a number (array) or string (object).
  *
  * Throws if a segment is already a leaf value (e.g. `"name"` was submitted as
- * a flat key before `"name.first"`) or already a container where a leaf value
- * is being set (the reverse order) — the same conflict either way.
+ * a flat key before `"name.first"`), including a value collected from a
+ * repeated key.
  */
-function setNested(
+function walkToParent(
   root: Container,
   segments: Array<string | number>,
-  value: unknown,
   key: string,
-  limits: FormDataLimits,
-): void {
+  state: ParseState,
+): Container {
   let current = root;
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]!;
-    assertWritable(current, seg, key, limits);
+    assertWritable(current, seg, key, state);
 
     const existing = ownValue(current, seg);
-    if (existing == null) {
+    if (existing === undefined) {
       const created: Container =
         typeof segments[i + 1] === "number" ? ([] as unknown as Container) : {};
       current[seg] = created;
       current = created;
-    } else if (isContainer(existing)) {
+    } else if (
+      isContainer(existing) &&
+      !(Array.isArray(existing) && state.repeatedValues.has(existing))
+    ) {
       current = existing;
     } else {
       throw conflictingPathError(segments.slice(0, i + 1).join("."));
     }
   }
+  return current;
+}
 
+/**
+ * Sets a leaf value at a parsed path. A path that receives a second value
+ * becomes an array of all its values, at any depth, so the schema sees every
+ * value and never only the last one (CWE-235, ASVS V15.3.7).
+ *
+ * Throws if the path is already a container (the reverse order of the conflict
+ * in {@link walkToParent}).
+ */
+function setLeaf(
+  root: Container,
+  segments: Array<string | number>,
+  value: unknown,
+  key: string,
+  state: ParseState,
+): void {
+  const parent = walkToParent(root, segments, key, state);
   const last = segments[segments.length - 1]!;
-  assertWritable(current, last, key, limits);
-  if (isContainer(ownValue(current, last))) {
-    throw conflictingPathError(segments.join("."));
+  assertWritable(parent, last, key, state);
+
+  // Segments never contain `.`, `[`, or `]`, so this join is a canonical path:
+  // `role` and `[role]`, or `items.0` and `items[0]`, give the same string.
+  const path = segments.join(".");
+  const count = state.leafCounts.get(path) ?? 0;
+  const existing = ownValue(parent, last);
+  if (count === 0) {
+    if (existing !== undefined) throw conflictingPathError(path);
+    parent[last] = value;
+  } else if (count === 1) {
+    const values = [existing, value];
+    state.repeatedValues.add(values);
+    addArraySlots(state, 2, key);
+    parent[last] = values;
+  } else {
+    (existing as unknown[]).push(value);
+    addArraySlots(state, 1, key);
   }
-  current[last] = value;
+  state.leafCounts.set(path, count + 1);
+}
+
+/** Sets the empty array that a `path[]` sentinel stands for. */
+function setEmptyArray(
+  root: Container,
+  segments: Array<string | number>,
+  key: string,
+  state: ParseState,
+): void {
+  const parent = walkToParent(root, segments, key, state);
+  const last = segments[segments.length - 1]!;
+  assertWritable(parent, last, key, state);
+  if (ownValue(parent, last) !== undefined) throw conflictingPathError(segments.join("."));
+  parent[last] = [];
+}
+
+/**
+ * Normalizes one FormData value: an empty file input (no name, zero size)
+ * becomes `null`. A real file counts against `maxFiles` and `maxFileBytes`.
+ */
+function readEntryValue(value: FormDataEntryValue, key: string, state: ParseState): unknown {
+  if (!(value instanceof File)) return value;
+  if (value.size === 0 && value.name === "") return null;
+  if (++state.files > state.limits.maxFiles) {
+    throw new FormDataParseError(
+      "file-count",
+      `more than ${state.limits.maxFiles} files submitted`,
+    );
+  }
+  if (value.size > state.limits.maxFileBytes) {
+    throw new FormDataParseError(
+      "file-size",
+      `file ${describeKey(key)} is larger than ${state.limits.maxFileBytes} bytes`,
+    );
+  }
+  return value;
 }
 
 /**
@@ -223,65 +276,52 @@ function setNested(
  *   sentinels and produce an empty array at that path.
  * - Empty File entries (no name, zero size) are normalized to `null`.
  * - Non-empty File/Blob entries are preserved as-is.
- * - Duplicate flat keys (same normalized path) are collected into arrays.
+ * - A path submitted more than once (same normalized path, at any depth)
+ *   collects all its values into an array.
+ * - Arrays may skip indices (a native form can), so they may have empty slots.
  *
  * Throws `FormDataParseError` (see SECURITY.md) if:
  * - the same base path is submitted as both a leaf value and a container
  *   (e.g. both `"name"` and `"name.first"`), regardless of order;
  * - a path segment is `__proto__`, `constructor`, or `prototype`;
  * - a path is empty, or exceeds `limits.maxDepth` segments;
- * - an array index is `limits.maxArrayLength` or more, or a named key is set
- *   on an array;
- * - there are more than `limits.maxFields` entries.
+ * - an array index is `limits.maxArrayLength` or more, the arrays together
+ *   exceed `limits.maxArraySlots` slots, or a named key is set on an array;
+ * - there are more than `limits.maxFields` entries, more than `limits.maxFiles`
+ *   files, or a file larger than `limits.maxFileBytes`.
+ *
+ * Throws a `TypeError` if a limit is not a non-negative integer.
  */
 export function formDataToObject(
   source: FormData | URLSearchParams,
   limits?: Partial<FormDataLimits>,
 ): Record<string, unknown> {
-  const resolved = resolveLimits(limits);
+  const state: ParseState = {
+    limits: resolveLimits(limits),
+    arraySlots: 0,
+    files: 0,
+    leafCounts: new Map(),
+    repeatedValues: new WeakSet(),
+  };
   const result: Record<string, unknown> = {};
-  const seen = new Map<string | number, number>();
   let fieldCount = 0;
 
   for (const [key, rawValue] of source.entries()) {
-    if (++fieldCount > resolved.maxFields) {
+    if (++fieldCount > state.limits.maxFields) {
       throw new FormDataParseError(
         "field-count",
-        `more than ${resolved.maxFields} fields submitted`,
+        `more than ${state.limits.maxFields} fields submitted`,
       );
     }
 
     const isEmptyArraySentinel = key.endsWith("[]");
     const segments = parsePath(isEmptyArraySentinel ? key.slice(0, -2) : key);
-    assertSafePath(key, segments, resolved);
+    assertSafePath(key, segments, state.limits);
 
     if (isEmptyArraySentinel) {
-      setNested(result, segments, [], key, resolved);
-      continue;
-    }
-
-    const value =
-      rawValue instanceof File && rawValue.size === 0 && rawValue.name === "" ? null : rawValue;
-
-    if (segments.length === 1) {
-      // Count by the normalized segment so `role` and `[role]` are recognized
-      // as the same field rather than the second silently overwriting the first.
-      const flatKey = segments[0]!;
-      const count = seen.get(flatKey) ?? 0;
-      const existing = ownValue(result, flatKey);
-      if (count === 0) {
-        if (isContainer(existing)) {
-          throw conflictingPathError(key);
-        }
-        result[flatKey] = value;
-      } else if (count === 1) {
-        result[flatKey] = [existing, value];
-      } else {
-        (existing as unknown[]).push(value);
-      }
-      seen.set(flatKey, count + 1);
+      setEmptyArray(result, segments, key, state);
     } else {
-      setNested(result, segments, value, key, resolved);
+      setLeaf(result, segments, readEntryValue(rawValue, key, state), key, state);
     }
   }
 
@@ -297,32 +337,77 @@ function isPlainContainer(value: unknown): value is Container {
 }
 
 /**
- * Applies the same key rules as `formDataToObject` to an already-parsed payload
+ * Rejects a leaf that JSON can carry but another component may read
+ * differently (RFC 7493 I-JSON): a string with a lone surrogate, which
+ * FormData would have changed to U+FFFD, or a number that overflowed to
+ * `Infinity`.
+ */
+function assertInteroperableLeaf(value: unknown): void {
+  if (typeof value === "string" && !value.isWellFormed()) {
+    throw new FormDataParseError("malformed-string", "payload has a string with a lone surrogate");
+  }
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    throw new FormDataParseError("non-finite-number", "payload has a number that is not finite");
+  }
+}
+
+/**
+ * Applies the same rules as `formDataToObject` to an already-parsed payload
  * (e.g. a JSON body), so every input format is held to one standard
- * (ASVS V1.5.3). Throws `FormDataParseError` for a `__proto__`, `constructor`,
- * or `prototype` own key at any depth, or nesting deeper than
- * `limits.maxDepth`.
+ * (ASVS V1.5.3). Throws `FormDataParseError` for:
+ *
+ * - a `__proto__`, `constructor`, or `prototype` own key at any depth;
+ * - nesting deeper than `limits.maxDepth`;
+ * - more than `limits.maxFields` object keys and array items in total;
+ * - an array longer than `limits.maxArrayLength`, or arrays whose lengths add
+ *   up to more than `limits.maxArraySlots`;
+ * - a key or string with a lone surrogate, or a number that is not finite.
  *
  * Only plain objects and arrays are descended into; `Date`, `File`, and class
  * instances are left alone. Iterative, so deep input can't overflow the stack.
+ * Throws a `TypeError` if a limit is not a non-negative integer.
  */
 export function assertSafePayload(value: unknown, limits?: Partial<FormDataLimits>): void {
-  const { maxDepth } = resolveLimits(limits);
+  const { maxDepth, maxFields, maxArrayLength, maxArraySlots } = resolveLimits(limits);
   const stack: Array<[node: unknown, depth: number]> = [[value, 0]];
   const visited = new WeakSet<object>();
+  let fieldCount = 0;
+  let arraySlots = 0;
 
   while (stack.length > 0) {
     const [node, depth] = stack.pop()!;
+    assertInteroperableLeaf(node);
     if (!isPlainContainer(node) || visited.has(node)) continue;
     visited.add(node);
 
     if (depth > maxDepth) {
       throw new FormDataParseError("depth", `payload is nested deeper than ${maxDepth} levels`);
     }
-    for (const key of Object.keys(node)) {
+    if (Array.isArray(node)) {
+      if (node.length > maxArrayLength) {
+        throw new FormDataParseError(
+          "array-index",
+          `payload has an array longer than ${maxArrayLength} items`,
+        );
+      }
+      arraySlots += node.length;
+      if (arraySlots > maxArraySlots) {
+        throw new FormDataParseError(
+          "array-index",
+          `payload arrays have more than ${maxArraySlots} items in total`,
+        );
+      }
+    }
+    const keys = Object.keys(node);
+    fieldCount += keys.length;
+    if (fieldCount > maxFields) {
+      throw new FormDataParseError("field-count", `payload has more than ${maxFields} fields`);
+    }
+    for (const key of keys) {
       if (isUnsafeKey(key)) {
         throw new FormDataParseError("unsafe-key", `payload uses the reserved key "${key}"`);
       }
+      assertInteroperableLeaf(key);
       stack.push([node[key], depth + 1]);
     }
   }
@@ -352,7 +437,13 @@ export function isJsonContentType(request: Request): boolean {
  * - Empty arrays emit a sentinel key `path[]` with an empty string value so
  *   that `formDataToObject` can reconstruct an empty array (rather than the
  *   field being absent entirely).
+ * - Dates are serialized with `toISOString()`, which the server coerces back
+ *   to the same instant.
  * - All other primitives are coerced to strings.
+ *
+ * Throws a `TypeError` for an object key that is empty or contains `.`, `[`,
+ * or `]`. The server would read such a key as a different path, so the data
+ * would change shape on the way (CWE-140).
  */
 export function objectToFormData(obj: unknown): FormData {
   const formData = new FormData();
@@ -382,15 +473,17 @@ export function objectToFormData(obj: unknown): FormData {
       return;
     }
 
-    // Dates serialize via their own `toString()` before the generic object
-    // branch would otherwise recurse into them.
+    // Dates serialize before the generic object branch would otherwise recurse
+    // into them. An invalid date has no ISO form, so it goes as "Invalid Date"
+    // and the schema reports it.
     if (value instanceof Date) {
-      formData.append(prefix, value.toString());
+      formData.append(prefix, Number.isNaN(value.getTime()) ? String(value) : value.toISOString());
       return;
     }
 
     if (typeof value === "object") {
       for (const [key, nested] of Object.entries(value)) {
+        assertSerializableKey(key);
         walk(nested, prefix ? `${prefix}.${key}` : key);
       }
       return;
@@ -409,8 +502,21 @@ export function objectToFormData(obj: unknown): FormData {
   }
 
   for (const [key, value] of Object.entries(obj)) {
+    assertSerializableKey(key);
     walk(value, key);
   }
 
   return formData;
+}
+
+/** A character that `parsePath` reads as a path delimiter. */
+const PATH_DELIMITER = /[.[\]]/;
+
+/** Throws for an object key that `formDataToObject` would read as a different path. */
+function assertSerializableKey(key: string): void {
+  if (key === "" || PATH_DELIMITER.test(key)) {
+    throw new TypeError(
+      `objectToFormData: the key ${describeKey(key)} is empty or contains ".", "[", or "]"`,
+    );
+  }
 }
