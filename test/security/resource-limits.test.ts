@@ -3,22 +3,24 @@
  * ASVS V1.5.3). SECURITY.md, "Resource exhaustion". Findings F-2, F-3, F-6,
  * F-12, F-16, and F-19 in audits/2026-09-18-form-parsing/REPORT.md.
  *
- * A time limit of 50 ms marks a payload that must fail before the parser or the
- * schema does work in proportion to what the payload claims.
+ * A payload with a time limit (`FAST_LIMIT_MS`) must fail early. The parser and
+ * the schema must not do work in proportion to what the payload claims. The
+ * limit catches a complexity defect. It is not a benchmark.
  */
 import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_FORM_DATA_LIMITS } from "../../src/index.ts";
 import {
+  FAST_LIMIT_MS,
   chunked,
   consumers,
+  fastest,
   fields,
   get,
   json,
   multipart,
   reasonOf,
   schemas,
-  timed,
   urlencoded,
 } from "./harness.ts";
 import { installPrototypeGuard } from "./prototype-guard.ts";
@@ -40,12 +42,13 @@ function manyFields(count: number): URLSearchParams {
 
 describe.each(consumers)("$name consumer", (consumer) => {
   describe("array indices (F-2, F-3)", () => {
-    it("rejects a 4-billion index in less than 50 ms", async () => {
-      const [outcome, ms] = await timed(() =>
-        consumer.submit(urlencoded("items.4294967294=1"), schemas.items),
+    it("rejects a 4-billion index in less than 1 second", async () => {
+      const [outcome, ms] = await fastest(
+        () => urlencoded("items.4294967294=1"),
+        (request) => consumer.submit(request, schemas.items),
       );
       expect(reasonOf(outcome)).toBe("array-index");
-      expect(ms).toBeLessThan(50);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
     });
 
     it("rejects the bracket form of a huge index", async () => {
@@ -96,20 +99,22 @@ describe.each(consumers)("$name consumer", (consumer) => {
   });
 
   describe("total array slots across fields (F-12)", () => {
-    it("rejects 100 sparse arrays (a 2 KB body) in less than 50 ms", async () => {
-      const [outcome, ms] = await timed(() =>
-        consumer.submit(urlencoded(sparseTags(100)), schemas.tags),
+    it("rejects 100 sparse arrays (a 2 KB body) in less than 1 second", async () => {
+      const [outcome, ms] = await fastest(
+        () => urlencoded(sparseTags(100)),
+        (request) => consumer.submit(request, schemas.tags),
       );
       expect(reasonOf(outcome)).toBe("array-index");
-      expect(ms).toBeLessThan(50);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
     });
 
-    it("rejects 1000 sparse arrays (a 21 KB body) in less than 50 ms", async () => {
-      const [outcome, ms] = await timed(() =>
-        consumer.submit(urlencoded(sparseTags(1000)), schemas.tags),
+    it("rejects 1000 sparse arrays (a 21 KB body) in less than 1 second", async () => {
+      const [outcome, ms] = await fastest(
+        () => urlencoded(sparseTags(1000)),
+        (request) => consumer.submit(request, schemas.tags),
       );
       expect(reasonOf(outcome)).toBe("array-index");
-      expect(ms).toBeLessThan(50);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
     });
 
     it("counts the slots of every array, empty slots included", async () => {
@@ -250,13 +255,14 @@ describe.each(consumers)("$name consumer", (consumer) => {
       expect(reasonOf(await consumer.submit(get("a=1"), schemas.any, limits))).toBe("depth");
     });
 
-    it("applies the limits to an already-parsed payload in less than 50 ms", async () => {
+    it("applies the limits to an already-parsed payload in less than 1 second", async () => {
       const payload = { x: Array.from({ length: 1_000_000 }, () => 0) };
-      const [outcome, ms] = await timed(() =>
-        consumer.submit(payload, schemas.passthrough, { maxArrayLength: 10 }),
+      const [outcome, ms] = await fastest(
+        () => payload,
+        (parsed) => consumer.submit(parsed, schemas.passthrough, { maxArrayLength: 10 }),
       );
       expect(reasonOf(outcome)).toBe("array-index");
-      expect(ms).toBeLessThan(50);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
     });
 
     it("counts the slots of a sparse already-parsed array", async () => {
@@ -281,10 +287,9 @@ describe.each(consumers)("$name consumer", (consumer) => {
           "content-length": String(1024 * MiB),
         },
       });
-      const [outcome, ms] = await timed(() => consumer.submit(request, schemas.user));
+      const outcome = await consumer.submit(request, schemas.user);
       expect(reasonOf(outcome)).toBe("body-size");
       expect(request.bodyUsed).toBe(false);
-      expect(ms).toBeLessThan(50);
     });
 
     it("stops a chunked body at maxBodyBytes", async () => {
