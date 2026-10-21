@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { HttpServerRespondable, HttpServerResponse } from "effect/unstable/http";
+import { HttpServerRespondable, HttpServerResponse } from "effect/http";
 
 /**
  * Error raised when a request body cannot be parsed to its declared Content-Type.

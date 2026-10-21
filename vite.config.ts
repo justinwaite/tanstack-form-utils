@@ -43,7 +43,7 @@ export default defineConfig({
             "@tanstack/react-form",
             "react-router",
             "effect",
-            "effect/unstable/http",
+            "effect/http",
           ],
         },
         test: {
