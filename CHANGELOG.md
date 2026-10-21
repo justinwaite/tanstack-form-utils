@@ -1,5 +1,11 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.6.0
+
+### Minor Changes
+
+- [#52](https://github.com/justinwaite/tanstack-form-utils/pull/52) [`6bd6670`](https://github.com/justinwaite/tanstack-form-utils/commit/6bd6670fad3763821d684b11c44e987abaefbfeb) Thanks [@justinwaite](https://github.com/justinwaite)! - Support the stable Effect 4 release and raise the minimum `effect` peer dependency to `>=4.0.0`. Effect `4.0.0` exports the HTTP modules from `effect/http` instead of `effect/unstable/http`, and the `/effect` entry point now imports from the new path. Effect `4.0.0-beta` and `4.0.0-rc` releases are no longer supported.
+
 ## 0.5.0
 
 ### Minor Changes
