@@ -1,5 +1,17 @@
 # @justinwaite/tanstack-form-utils
 
+## 0.7.0
+
+### Minor Changes
+
+- [#56](https://github.com/justinwaite/tanstack-form-utils/pull/56) [`41acb17`](https://github.com/justinwaite/tanstack-form-utils/commit/41acb1700578d99ba6c9f31a330aa69c93ee8899) Thanks [@justinwaite](https://github.com/justinwaite)! - Fix: in both entry points, a field that fails several checks now reports the message of its first failed check. Before, the Zod `reply()` kept the last message. For example, an empty email field showed "Enter a valid email" instead of "Required".
+
+  The Effect `parseSubmission` now reports an error for every invalid field, as the client does. Before, it stopped at the first invalid field. Effect 4 ignores a `parseOptions` annotation on a schema, so an app had no way to turn this on.
+
+  Security: the Effect `parseSubmission` now decodes with options that have no prototype. Before, a polluted `Object.prototype.disableChecks` turned off every schema check, because the default options of Effect are a plain object.
+
+  A validation error can now be large. A 179 B body with sparse arrays can produce about 90000 field errors. `maxFields` and `maxArraySlots` set the upper bound. See SECURITY.md.
+
 ## 0.6.0
 
 ### Minor Changes
