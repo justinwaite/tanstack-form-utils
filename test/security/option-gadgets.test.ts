@@ -27,6 +27,7 @@ const POLLUTED = [
   "maxArraySlots",
   "maxFields",
   "maxBodyBytes",
+  "disableChecks",
 ];
 
 // Remove the test's own pollution before the prototype guard runs.
@@ -81,6 +82,15 @@ describe("effect consumer: init", () => {
     proto.init = { status: 200 };
     const outcome = await effectConsumer.submit(urlencoded("name=a&name=b"), schemas.user);
     expect(outcome).toMatchObject({ tag: "invalid", status: 400 });
+  });
+});
+
+// `disableChecks` is an Effect parse option. Zod reads no such option.
+describe("effect consumer: decode options", () => {
+  it("ignores a polluted Object.prototype.disableChecks", async () => {
+    proto.disableChecks = true;
+    const outcome = await effectConsumer.submit(urlencoded("name="), schemas.nonEmptyName);
+    expect(outcome.tag).toBe("invalid");
   });
 });
 

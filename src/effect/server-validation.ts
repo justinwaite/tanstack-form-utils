@@ -1,5 +1,6 @@
-import { Data, Effect, Schema, SchemaIssue } from "effect";
+import { Data, Effect, Schema, SchemaAST, SchemaIssue } from "effect";
 
+import { firstMessagePerPath } from "../field-errors.ts";
 import { ownOption, resolveLimits } from "../limits.ts";
 import { readRequestBody } from "../request-body.ts";
 import {
@@ -45,6 +46,16 @@ export type SubmissionReplyFn = (opts?: {
 /** Singleton formatter — avoids recreating the closure on every request. */
 const issueFormatter = SchemaIssue.makeFormatterStandardSchemaV1();
 
+/**
+ * Decodes with every issue, as the client does, so one submission reports the
+ * error of every invalid field. The object has no prototype, so a polluted
+ * `Object.prototype.disableChecks` can't turn the schema checks off. Effect's
+ * own default options are a plain `{}`, which would inherit it.
+ */
+const PARSE_OPTIONS: SchemaAST.ParseOptions = Object.freeze(
+  Object.assign(Object.create(null) as SchemaAST.ParseOptions, { errors: "all" as const }),
+);
+
 /** Normalises a Standard Schema V1 path segment to a string key. */
 function pathSegmentToString(segment: PropertyKey | { readonly key: PropertyKey }): string {
   if (typeof segment === "object" && segment !== null) {
@@ -71,8 +82,7 @@ function schemaFailureToResponse(
   return {
     success: false,
     errorMap: { onServer: formErrors.length > 0 ? formErrors : undefined },
-    // `fromEntries` defines own properties, so a `__proto__` path can't hit the setter.
-    fieldErrors: Object.fromEntries(fieldErrors),
+    fieldErrors: firstMessagePerPath(fieldErrors),
   };
 }
 
@@ -191,6 +201,9 @@ const resolveRawInput = (
  * (defaults to 400). On success, call `reply()` to produce a `SubmissionResponse`
  * with `success: true` to pass back as `actionData`.
  *
+ * A validation error reports every invalid field, as the client does. A field
+ * that fails several checks reports the message of its first failed check.
+ *
  * `schema`, `init`, and `limits` are read only as own properties of `options`,
  * so a polluted `Object.prototype` can't supply them. A limit that is not a
  * non-negative integer is a programming error: the Effect dies with a
@@ -222,7 +235,7 @@ export function parseSubmission<A>(
     // the server validates the same shape the client did.
     const input = coerceFormValue(schema, rawInput);
 
-    const value = yield* Schema.decodeUnknownEffect(schema)(input).pipe(
+    const value = yield* Schema.decodeUnknownEffect(schema)(input, PARSE_OPTIONS).pipe(
       Effect.mapError((schemaError) =>
         toFormError(schemaFailureToResponse(issueFormatter(schemaError.issue))),
       ),

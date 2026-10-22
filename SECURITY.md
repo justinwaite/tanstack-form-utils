@@ -168,29 +168,39 @@ After every test, the suite makes sure that `Object.prototype`,
 | A polluted `Object.prototype.limits` with a large `maxArrayLength`         | The default limits apply        |
 | A polluted `Object.prototype.maxDepth`, `maxArraySlots`, or `maxBodyBytes` | The default limits apply        |
 | A polluted `Object.prototype.init` with `status: 200` (Effect)             | A validation error keeps 400    |
+| A polluted `Object.prototype.disableChecks` (Effect)                       | The schema checks still run     |
 | A limit that is negative, fractional, `NaN`, `Infinity`, or not a number   | `TypeError` (programming error) |
 
 ### Resource exhaustion
 
-| Path                                                               | Required behavior                      |
-| ------------------------------------------------------------------ | -------------------------------------- |
-| `items.4294967294=1`                                               | Reject in less than 1 second           |
-| An array index at or above `maxArrayLength`                        | Reject                                 |
-| `items.length=...` or any non-index key on an array                | Reject                                 |
-| 1000 fields `items.<i>.tags.9999=x` (a 21 KB body)                 | Reject in less than 1 second           |
-| Arrays whose lengths add up to more than `maxArraySlots`           | Reject. Empty slots count              |
-| A native form that skips an index, such as `items.0` and `items.2` | Accept, with an empty slot             |
-| Path depth above `maxDepth`                                        | Reject                                 |
-| More entries than `maxFields`                                      | Reject                                 |
-| JSON nesting above `maxDepth`                                      | Reject, with no stack overflow         |
-| A JSON array longer than `maxArrayLength`                          | Reject                                 |
-| JSON object keys and array items above `maxFields`                 | Reject                                 |
-| JSON arrays whose lengths add up to more than `maxArraySlots`      | Reject                                 |
-| A `Content-Length` above `maxBodyBytes`                            | Reject before the body is read         |
-| A chunked body, or a false `Content-Length`, above `maxBodyBytes`  | Reject, and stop the read at the limit |
-| More non-empty files than `maxFiles`                               | Reject                                 |
-| A file larger than `maxFileBytes`                                  | Reject                                 |
-| Limits that the caller sets                                        | The parser uses the caller's limits    |
+| Path                                                                           | Required behavior                                                                           |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `items.4294967294=1`                                                           | Reject in less than 1 second                                                                |
+| An array index at or above `maxArrayLength`                                    | Reject                                                                                      |
+| `items.length=...` or any non-index key on an array                            | Reject                                                                                      |
+| 1000 fields `items.<i>.tags.9999=x` (a 21 KB body)                             | Reject in less than 1 second                                                                |
+| Arrays whose lengths add up to more than `maxArraySlots`                       | Reject. Empty slots count                                                                   |
+| A native form that skips an index, such as `items.0` and `items.2`             | Accept, with an empty slot                                                                  |
+| Path depth above `maxDepth`                                                    | Reject                                                                                      |
+| More entries than `maxFields`                                                  | Reject                                                                                      |
+| JSON nesting above `maxDepth`                                                  | Reject, with no stack overflow                                                              |
+| A JSON array longer than `maxArrayLength`                                      | Reject                                                                                      |
+| JSON object keys and array items above `maxFields`                             | Reject                                                                                      |
+| JSON arrays whose lengths add up to more than `maxArraySlots`                  | Reject                                                                                      |
+| A `Content-Length` above `maxBodyBytes`                                        | Reject before the body is read                                                              |
+| A chunked body, or a false `Content-Length`, above `maxBodyBytes`              | Reject, and stop the read at the limit                                                      |
+| More non-empty files than `maxFiles`                                           | Reject                                                                                      |
+| A file larger than `maxFileBytes`                                              | Reject                                                                                      |
+| Limits that the caller sets                                                    | The parser uses the caller's limits                                                         |
+| `maxFields` fields that are all invalid                                        | One error for each field, in less than 1 second                                             |
+| 9 fields `items.<i>.tags.9999=x` (a 179 B body) for arrays of required strings | One error for each empty slot (89991), in less than 1 second, with field errors under 8 MiB |
+
+A validation error lists every invalid field, so a small body can produce a
+large reply. The 179 B body above produces 89991 field errors. In one
+measurement, the Effect entry point built a 3.4 MB reply in about 70 ms. The
+Zod entry point built a 6.6 MB reply in about 110 ms. The suite requires
+less than 1 second and less than 8 MiB of field errors. `maxFields` and
+`maxArraySlots` set the upper bound of this cost.
 
 The default limits are:
 

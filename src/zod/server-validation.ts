@@ -2,6 +2,7 @@ import type { $ZodType, input, output } from "zod/v4/core";
 
 import z from "zod";
 
+import { firstMessagePerPath } from "../field-errors.ts";
 import { ownOption, resolveLimits } from "../limits.ts";
 import {
   assertSafePayload,
@@ -92,10 +93,10 @@ function createReplyFn<TSchema>(error?: z.ZodError<output<TSchema>>) {
     fieldErrors?: Partial<Record<keyof input<TSchema> & string, string>>;
   }) {
     const baseFieldErrors = error
-      ? Object.fromEntries(
+      ? firstMessagePerPath(
           error.issues
             .filter((issue) => issue.path.length > 0)
-            .map((issue) => [issue.path.join("."), issue.message]),
+            .map((issue) => [issue.path.join("."), issue.message] as const),
         )
       : undefined;
     const errorMap = {
