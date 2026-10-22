@@ -206,6 +206,32 @@ describe.each(consumers)("$name consumer", (consumer) => {
     });
   });
 
+  describe("validation errors on every field", () => {
+    it("reports maxFields invalid fields in less than 1 second", async () => {
+      const max = DEFAULT_FORM_DATA_LIMITS.maxFields;
+      const [outcome, ms] = await fastest(
+        () => urlencoded(manyFields(max)),
+        (request) => consumer.submit(request, schemas.numbers),
+      );
+      if (outcome.tag !== "invalid") throw new Error(`expected invalid, got ${outcome.tag}`);
+      expect(Object.keys(outcome.fieldErrors)).toHaveLength(max);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
+    });
+
+    it("reports the empty slots of sparse arrays (a 179 B body) in less than 1 second", async () => {
+      // 9 tags arrays of 10000 slots, 9999 of them empty: 89991 invalid items,
+      // and 90009 slots in total, below maxArraySlots.
+      const [outcome, ms] = await fastest(
+        () => urlencoded(sparseTags(9)),
+        (request) => consumer.submit(request, schemas.tags),
+      );
+      if (outcome.tag !== "invalid") throw new Error(`expected invalid, got ${outcome.tag}`);
+      expect(Object.keys(outcome.fieldErrors)).toHaveLength(9 * 9999);
+      expect(JSON.stringify(outcome.fieldErrors).length).toBeLessThan(8 * MiB);
+      expect(ms).toBeLessThan(FAST_LIMIT_MS);
+    });
+  });
+
   describe("JSON payloads get the same limits (F-16)", () => {
     it("rejects a JSON array above maxArrayLength", async () => {
       const body = JSON.stringify({ x: Array.from({ length: 11 }, () => 0) });

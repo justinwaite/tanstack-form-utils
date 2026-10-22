@@ -105,3 +105,29 @@ describe("parseSubmission with a JSON payload", () => {
     expect(submission.value).toEqual({ name: "Jane", age: 30 });
   });
 });
+
+describe("parseSubmission validation errors", () => {
+  const contactSchema = z.object({
+    email: z.string().min(1, "Required").regex(/@/, "Enter a valid email"),
+    name: z.string().min(1, "Name is required"),
+  });
+
+  it("reports an error for every invalid field", () => {
+    const submission = parseSubmission(new URLSearchParams({ email: "jane", name: "" }), {
+      schema: contactSchema,
+    });
+
+    expect(submission.reply().fieldErrors).toEqual({
+      email: "Enter a valid email",
+      name: "Name is required",
+    });
+  });
+
+  it("reports the first failed check of a field that fails several", () => {
+    const submission = parseSubmission(new URLSearchParams({ email: "", name: "Jane" }), {
+      schema: contactSchema,
+    });
+
+    expect(submission.reply().fieldErrors).toEqual({ email: "Required" });
+  });
+});

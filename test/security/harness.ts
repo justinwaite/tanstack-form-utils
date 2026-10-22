@@ -189,6 +189,16 @@ export const schemas = {
     zod: z.object({ n: z.bigint() }),
     effect: Schema.Struct({ n: Schema.BigInt }),
   },
+  /** Any key with a number value, so every non-numeric field is invalid. */
+  numbers: {
+    zod: z.record(z.string(), z.number()),
+    effect: Schema.Record(Schema.String, Schema.Number),
+  },
+  /** A name with a check, so a test can see that the checks of a schema run. */
+  nonEmptyName: {
+    zod: z.object({ name: z.string().min(1) }),
+    effect: Schema.Struct({ name: Schema.String.check(Schema.isNonEmpty()) }),
+  },
   /** Accepts any value, so a test can see what the JSON parser produced. */
   any: {
     zod: z.unknown(),

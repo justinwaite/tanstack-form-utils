@@ -158,3 +158,35 @@ describe("parseSubmission with a non-Request payload", () => {
     expect(result).toBe("invalid-body-error");
   });
 });
+
+describe("parseSubmission validation errors", () => {
+  const ContactSchema = Schema.Struct({
+    email: Schema.String.check(
+      Schema.isNonEmpty({ message: "Required" }),
+      Schema.isPattern(/@/, { message: "Enter a valid email" }),
+    ),
+    name: Schema.String.check(Schema.isNonEmpty({ message: "Name is required" })),
+  });
+
+  /** Runs `parseSubmission` on the params and returns the field errors of its failure. */
+  async function fieldErrorsOf(params: URLSearchParams) {
+    return Effect.runPromise(
+      parseSubmission(params, { schema: ContactSchema }).pipe(
+        Effect.map(() => undefined),
+        Effect.catchTag("FormValidationError", (error) => Effect.succeed(error.reply.fieldErrors)),
+      ),
+    );
+  }
+
+  it("reports an error for every invalid field", async () => {
+    const fieldErrors = await fieldErrorsOf(new URLSearchParams({ email: "jane", name: "" }));
+
+    expect(fieldErrors).toEqual({ email: "Enter a valid email", name: "Name is required" });
+  });
+
+  it("reports the first failed check of a field that fails several", async () => {
+    const fieldErrors = await fieldErrorsOf(new URLSearchParams({ email: "", name: "Jane" }));
+
+    expect(fieldErrors).toEqual({ email: "Required" });
+  });
+});
