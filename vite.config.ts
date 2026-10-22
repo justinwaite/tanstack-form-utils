@@ -79,6 +79,12 @@ export default defineConfig({
     },
   },
   fmt: {
-    ignorePatterns: ["test/security/corpus/**"],
+    ignorePatterns: [
+      "test/security/corpus/**",
+      // Changesets writes this file on the release PR, and it indents the blank
+      // lines between the paragraphs of an entry. Formatting it would fail
+      // that PR's check.
+      "CHANGELOG.md",
+    ],
   },
 });
